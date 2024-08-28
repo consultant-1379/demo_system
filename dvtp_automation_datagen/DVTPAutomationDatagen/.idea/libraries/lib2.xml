@@ -1,0 +1,17 @@
+<component name="libraryTable">
+  <library name="lib">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/lib/apache-log4j-extras-1.0.jar!/" />
+      <root url="jar://$PROJECT_DIR$/lib/ECDSCommon.jar!/" />
+      <root url="jar://$PROJECT_DIR$/lib/ECDSBcdDataGen.jar!/" />
+      <root url="jar://$PROJECT_DIR$/lib/log4j-1.2.16.jar!/" />
+      <root url="jar://$PROJECT_DIR$/lib/jmxri.jar!/" />
+      <root url="jar://$PROJECT_DIR$/lib/jmxtools.jar!/" />
+      <root url="jar://$PROJECT_DIR$/lib/commons-logging-api-1.1.1.jar!/" />
+      <root url="jar://$PROJECT_DIR$/lib/ECDS_Events.jar!/" />
+      <root url="jar://$PROJECT_DIR$/lib/ECDS_Events_Utility.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

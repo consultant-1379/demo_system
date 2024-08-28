@@ -1,0 +1,7 @@
+0 * * * * /bin/bash /eniq/admin/bin/wifipoller.bsh start > /eniq/home/dcuser/log.txt 2>&1
+0 5 * * * /eniq/sw/bin/kpiAdmin refreshGroups
+
+#DVTP
+* * * * *  bash /eniq/home/dcuser/dvtp_Datagen_stream/Manage_stream_Datagen.bsh -s 3 -l /eniq/home/dcuser/dvtp_Datagen_stream/ >>  /dev/null 2>&1
+
+

@@ -1,0 +1,9 @@
+<component name="libraryTable">
+  <library name="DVTPAutomationDatagen">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/out/artifacts/DVTPAutomationDatagen_jar/DVTPAutomationDatagen.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

@@ -1,0 +1,18 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="dvtp_automation_datagen">
+    <output-path>$PROJECT_DIR$/../../out/artifacts</output-path>
+    <root id="archive" name="dvtp_automation_datagen.jar">
+      <element id="module-output" name="DVTPAutomationDatagen" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/lib/apache-log4j-extras-1.0.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/lib/ECDSCommon.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/lib/ECDSBcdDataGen.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/lib/log4j-1.2.16.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/lib/jmxri.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/lib/jmxtools.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/lib/commons-logging-api-1.1.1.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/lib/ECDS_Events.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/lib/ECDS_Events_Utility.jar" path-in-jar="/" />
+      <element id="file-copy" path="$PROJECT_DIR$/imsiTac.csv" />
+    </root>
+  </artifact>
+</component>

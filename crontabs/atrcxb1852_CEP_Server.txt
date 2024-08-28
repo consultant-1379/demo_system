@@ -1,0 +1,2 @@
+* * * * * find /eniq/backup/CEP/pcp/output/ -name "*.log-1.gz" -mmin +60 -exec rm -f {} \;
+* * * * * find /eniq/data/pushData/00/mss/GZS25 -name "GZS25*" -mmin +240  | xargs rm

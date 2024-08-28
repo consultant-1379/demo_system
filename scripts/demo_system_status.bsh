@@ -1,0 +1,409 @@
+#!/bin/bash 
+# ********************************************************************
+# Ericsson Radio Systems AB                                     SCRIPT
+# ********************************************************************
+#
+#
+# (c) Ericsson Radio Systems AB 2012 - All rights reserved.
+#
+# The copyright to the computer program(s) herein is the property
+# of Ericsson Radio Systems AB, Sweden. The programs may be used 
+# and/or copied only with the written permission from Ericsson Radio 
+# Systems AB or in accordance with the terms and conditions stipulated 
+# in the agreement/contract under which the program(s) have been 
+# supplied.
+#
+# ********************************************************************
+# Name    : 
+# Date    : 
+# Revision: 
+# Purpose : 
+#			
+#			
+#
+# Usage   : 
+#
+
+AWK=/usr/bin/awk
+BASENAME=/usr/bin/basename
+CAT=/usr/bin/cat
+CHMOD=/usr/bin/chmod
+CHOWN=/usr/bin/chown
+CP=/usr/bin/cp
+DATE=/usr/bin/date
+DIRNAME=/usr/bin/dirname
+ECHO=/usr/bin/echo
+EGREP=/usr/bin/egrep
+EXPR=/usr/bin/expr
+FIND=/usr/bin/find
+GETENT=/usr/bin/getent
+GREP=/usr/bin/grep
+GTAR=/usr/sfw/bin/gtar
+GZCAT=/usr/bin/gzcat
+GZIP=/usr/bin/gzip
+HEAD=/usr/bin/head
+MYHOSTNAME=/usr/bin/hostname
+ID=/usr/bin/id
+INIT=/usr/sbin/init
+LN=/usr/bin/ln
+LS=/usr/bin/ls
+MKDIR=/usr/bin/mkdir
+MOUNT=/usr/sbin/mount
+MV=/usr/bin/mv
+NAWK=/usr/bin/nawk
+PGREP=/usr/bin/pgrep
+PWD=/usr/bin/pwd
+REBOOT=/usr/sbin/reboot
+RM=/usr/bin/rm
+SED=/usr/bin/sed
+SLEEP=/usr/bin/sleep
+SORT=/usr/bin/sort
+SU=/usr/bin/su
+SVCADM=/usr/sbin/svcadm
+SVCCFG=/usr/sbin/svccfg
+SVCS=/usr/bin/svcs
+TAIL=/usr/bin/tail
+TAR=/usr/sbin/tar
+TEE=/usr/bin/tee
+TOUCH=/usr/bin/touch
+WC=/usr/bin/wc
+# Name of SunOS & ENIQ ini Files
+ENIQ_INI=niq.ini
+
+### Function: chk_create_logfile ###
+#
+# Check/Create Logfile
+#
+# Arguments:
+#   none
+# Return Values:
+#   none
+chk_create_logfile()
+{
+$MKDIR -p `$DIRNAME ${LOGFILE}`
+if [ $? -ne 0 ]; then
+    _err_msg_="Could not create directory `$DIRNAME ${LOGFILE}`"
+     abort_script "$_err_msg_"
+fi  
+
+$TOUCH -a ${LOGFILE}
+if [ $? -ne 0 ]; then
+    _err_msg_="Could not write to file ${LOGFILE}"
+    abort_script "$_err_msg_"
+fi  
+}
+
+### Function: remove_old_logs ###
+#
+# removes old logs that exceed the max number of logs to be kept and cleans tmp sql files created during run.
+#
+# Arguments:
+#       none
+# Return Values:
+#       none
+#       
+remove_old_logs() 
+{
+Number_of_logs_present=$(ls  -lt /eniq/local_logs/moniter_demo_sys/demo_system_status*.log|wc -l)
+number_of_logs_remove=`expr $Number_of_logs_present - 200 `
+
+
+if  [[ $Number_of_logs_present -gt 200 ]]
+then
+	for i in $(ls -r /eniq/local_logs/moniter_demo_sys/demo_system_status*.log | tail -${number_of_logs_remove}) 
+	do
+		fileTOremove=$i
+		rm $fileTOremove; 
+	done	
+fi
+
+
+}
+
+### Function: usage_msg ###
+#
+#   Print out the usage message
+#
+# Arguments:
+#   none
+# Return Values:
+#   none
+usage_msg() 
+{
+$CLEAR
+$ECHO "
+Usage: `$BASENAME $0` [ -m ] [ -l  <path_to_logfile>]
+                      
+options:
+
+-m 	: Optional parameter specifying whether its a manual execution of the script.
+
+
+-l 	:Optional parameter specifying the full path to logfile. If LOGFILE is not specified, a 
+      logfile will be created in /eniq/local_logs/moniter_demo_sys
+
+"
+}
+
+# ********************************************************************
+#
+# 	Main body of program
+#
+# ********************************************************************
+#
+. /eniq/sybase_iq/IQ-*/IQ-*.sh
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+IQISQL=$(which iqisql)
+ 
+ if [ ! -s  /eniq/installation/core_install/lib/common_functions.lib ]; then
+    _err_msg_="Cannot locate  . /eniq/installation/core_install/lib/common_functions.lib"
+   exit 1
+else
+     . /eniq/installation/core_install/lib/common_functions.lib
+fi
+
+$RM -f $DIR/send_temp.txt  2>/dev/null
+touch $DIR/send_temp.txt
+
+TIMESTAMP=`$DATE +%d.%m.%y_%H:%M:%S`
+
+while getopts "ml:" arg; do
+  case $arg in
+    m)skip_email="YES"
+       ;;
+	l) LOGFILE="$OPTARG" 
+       ;;
+   \?) usage_msg
+       exit 1
+       ;;
+  esac
+done
+if [ ! "${LOGFILE}" ]; then
+	LOGFILE=/eniq/local_logs/moniter_demo_sys/demo_system_status_${TIMESTAMP}.log
+fi	
+
+# Check/Create Logfile
+chk_create_logfile
+log_msg -s "- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - " -l ${LOGFILE}
+log_msg -s  "$(date +"%d-%m-%y_%H:%M:%S") Running demo system status check." -l ${LOGFILE}
+
+
+
+#query
+$CAT > $DIR/temp1.sql  <<STOP_SQL_CODE_POINT
+
+DECLARE @utctime timestamp
+set @utctime=(select CURRENT UTC TIMESTAMP)
+
+select 'EVENT_E_SGEH_ERR_RAW,'|| datediff(mi, (select max(datetime_id)  from dc.EVENT_E_SGEH_ERR_RAW where EVENT_SOURCE_NAME='SGSN56S'), @utctime) union all
+--select 'event_e_ran_cfa_err_raw,'||  datediff(mi, (select max(datetime_id) from dc.event_e_ran_cfa_err_raw where HIER3_ID=6065638830066245486), @utctime) union all
+select 'event_E_user_plane_classification_raw,'||  datediff(mi, (select max(datetime_id) from dc.event_E_user_plane_classification_raw where IMSI_MNC='01' and IMSI_MCC='466'), @utctime) union all
+select 'event_E_user_plane_tcp_raw,'||  datediff(mi,(select max(datetime_id) from dc.event_E_user_plane_tcp_raw where HIER3_ID=6065638830066245486), @utctime) union all
+--select 'EVENT_E_RAN_SESSION_RAW,'||  datediff(mi, (select max(datetime_id) from dc.EVENT_E_RAN_SESSION_RAW where IMSI_MNC='01' and IMSI_MCC='466'), @utctime) union all
+select 'EVENT_E_CORE_SESSION_RAW,'||  datediff(mi, (select max(datetime_id) from dc.EVENT_E_CORE_SESSION_RAW where IMSI > 466010000000000), @utctime) union all
+--select 'EVENT_E_MSS_LOC_SERVICE_CDR_ERR_RAW,'||  datediff(mi, (select max(datetime_id) from dc.EVENT_E_MSS_LOC_SERVICE_CDR_ERR_RAW), @utctime) union all
+--select 'EVENT_E_MSS_LOC_SERVICE_CDR_SUC_RAW,'||  datediff(mi,(select max(datetime_id) from dc.EVENT_E_MSS_LOC_SERVICE_CDR_SUC_RAW ), @utctime) union all
+--select 'EVENT_E_MSS_SMS_CDR_ERR_RAW,'||  datediff(mi, (select max(datetime_id) from dc.EVENT_E_MSS_SMS_CDR_ERR_RAW ), @utctime) union all
+select 'EVENT_E_MSS_SMS_CDR_SUC_RAW,'||  datediff(mi, (select max(datetime_id) from dc.EVENT_E_MSS_SMS_CDR_SUC_RAW ), @utctime) union all
+select 'EVENT_E_MSS_VOICE_CDR_DROP_CALL_RAW,'||  datediff(mi, (select max(datetime_id) from dc.EVENT_E_MSS_VOICE_CDR_DROP_CALL_RAW ), @utctime) union all
+select 'EVENT_E_MSS_VOICE_CDR_ERR_RAW,'||  datediff(mi, (select max(datetime_id) from dc.EVENT_E_MSS_VOICE_CDR_ERR_RAW ), @utctime) union all
+select 'EVENT_E_MSS_VOICE_CDR_SUC_RAW,'||  datediff(mi, (select max(datetime_id) from dc.EVENT_E_MSS_VOICE_CDR_SUC_RAW ), @utctime) union all
+select 'EVENT_E_DVTP_DT_RAW,'||  datediff(mi, (select max(datetime_id) from dc.EVENT_E_DVTP_DT_RAW ), @utctime)
+go
+STOP_SQL_CODE_POINT
+
+
+ ${IQISQL} -Udba -Psql -Sdwhdb -i $DIR/temp1.sql -o $DIR/table_times_temp.txt -w9999
+
+
+
+table_times=$($CAT $DIR/table_times_temp.txt| ${SED} '1,2d'|${SED} '$d'|${SED} '$d' )
+
+
+for table_time in $table_times
+do
+	table=`$ECHO $table_time | cut -d',' -f1 `
+	time=`$ECHO $table_time | cut -d',' -f2 `
+	if [[ -z $time ]]
+	then 
+		time=9999
+	fi
+	#echo "${table}  time is ${time}"
+	if [ $time -ge 720 ]
+	then
+		$ECHO "$(date +"%d-%m-%y_%H:%M:%S") Issue with ${table} as max datetime is older than expected @ ${time} minutes." >> $DIR/send_temp.txt
+		log_msg -s  "$(date +"%d-%m-%y_%H:%M:%S") Issue with ${table} as max datetime is older than expected @ ${time} minutes." -l ${LOGFILE}
+	
+	elif [ $time -ge 690 ]
+	then
+		$ECHO "$(date +"%d-%m-%y_%H:%M:%S") Issue with ${table} as max datetime is older than expected @ ${time} minutes. Attempting autorecovery." >> $DIR/send_temp.txt
+		log_msg -s  "$(date +"%d-%m-%y_%H:%M:%S") Issue with ${table} as max datetime is older than expected @ ${time} minutes. Attempting autorecovery." -l ${LOGFILE}
+		# restart datagen
+		bash  /eniq/home/dcuser/datagen_admin/manage_eniq_demo_datagen.bsh -a STOP
+		sleep 10
+		bash  /eniq/home/dcuser/datagen_admin/manage_eniq_demo_datagen.bsh -a STOP
+		bash  /eniq/home/dcuser/datagen_admin/manage_eniq_demo_datagen.bsh -a START -c /eniq/home/dcuser/datagen_admin/crontab_atrcxb1848
+		# reboot and restart the ec_1 server
+		touch /eniq/home/dcuser/trigger_MMS_recovery_semaphore_file	
+	fi
+done
+
+dbping -q -c "con=dwh_reader_1;eng=dwh_reader_1;links=tcpip{host=dwh_reader_1;port=2642;dobroadcast=none;verify=no};uid=dba;pwd=sql"
+if [ "$?" -ne "0" ]; then
+	$ECHO "$(date +"%d-%m-%y_%H:%M:%S") Issue cannot ping dwh_reader_1." >> $DIR/send_temp.txt
+	log_msg -s "$(date +"%d-%m-%y_%H:%M:%S") Issue cannot ping dwh_reader_1." -l ${LOGFILE}
+fi
+dbping -q -c "con=dwhdb;eng=dwhdb;links=tcpip{host=dwhdb;port=2640;dobroadcast=none;verify=no};uid=dba;pwd=sql"
+if [ "$?" -ne "0" ]; then
+	$ECHO "$(date +"%d-%m-%y_%H:%M:%S") Issue cannot ping dwhdb." >> $DIR/send_temp.txt
+	log_msg -s "$(date +"%d-%m-%y_%H:%M:%S") Issue cannot ping dwhdb." -l ${LOGFILE}
+fi
+
+
+
+nas_status=$(svcs -a | grep NAS-online| nawk '{print $1}')
+
+if [ "${nas_status}" != "online" ]; then
+	$ECHO "$(date +"%d-%m-%y_%H:%M:%S") Issue nas not online." >> $DIR/send_temp.txt
+	log_msg -s  "$(date +"%d-%m-%y_%H:%M:%S") Issue nas not online." -l ${LOGFILE}
+fi
+
+declare -a ports=('14848' '18080' '15050');
+
+
+for p in "${ports[@]}"
+do
+	glassfish_out=$( ssh -t -t -o StrictHostKeyChecking=no -o BatchMode=yes -q dcuser@glassfish "exec 3>/dev/tcp/glassfish/${p}") 
+	$ECHO $glassfish_out| grep refused >/dev/null
+	if [ $? -eq 0 ]
+	then
+		$ECHO "$(date +"%d-%m-%y_%H:%M:%S") Connection not possible to the Glassfish server on port \"${p}\"." >> $DIR/send_temp.txt
+		log_msg -s  "$(date +"%d-%m-%y_%H:%M:%S") Connection not possible to the Glassfish server on port \"${p}\"." -l ${LOGFILE}
+	fi
+done
+
+
+webserver_out=$( ssh -t -t -o StrictHostKeyChecking=no -o BatchMode=yes -q dcuser@glassfish "exec 3>/dev/tcp/webserver/8443") 
+$ECHO $webserver_out| grep refused >/dev/null
+if [ $? -eq 0 ]
+then
+	$ECHO "$(date +"%d-%m-%y_%H:%M:%S") Connection not possible to the webserver on port \"8443\"." >> $DIR/send_temp.txt
+	log_msg -s  "$(date +"%d-%m-%y_%H:%M:%S") Connection not possible to the webserver on port \"8443\"." -l ${LOGFILE}
+fi
+
+$CAT > $DIR/temp2.sql  <<STOP_SQL_CODE_POINT
+select usage from sp_iqdbspace() where DBSpaceName like 'IQ_MAIN'
+go
+STOP_SQL_CODE_POINT
+
+${IQISQL} -Udba -Psql -Sdwhdb -i $DIR/temp2.sql -o $DIR/iq_main_usage.txt -w9999
+
+iq_main_usage=$($CAT $DIR/iq_main_usage.txt| ${SED} '1,2d'|${SED} '$d'|${SED} '$d' )
+
+if [ ${iq_main_usage} -gt 65 ]
+then
+
+	$ECHO "$(date +"%d-%m-%y_%H:%M:%S"): Issue on demo system ${iq_main_usage}% of IQ_MAIN in use." >> $DIR/send_temp.txt
+	log_msg -s  "$(date +"%d-%m-%y_%H:%M:%S"): Issue on demo system ${iq_main_usage}% of IQ_MAIN in use." -l ${LOGFILE}
+
+$CAT > $DIR/temp3.sql  <<STOP_SQL_CODE_POINT
+sp_iqstatus
+go
+STOP_SQL_CODE_POINT
+
+
+
+	${IQISQL} -Udba -Psql -Sdwhdb -i $DIR/temp3.sql -o $DIR/iqstatus_dwhdb.txt -w9999
+
+	$ECHO "">>${LOGFILE}
+	$ECHO "sp_iqstatus output dwhdb">>${LOGFILE}
+	$CAT $DIR/iqstatus_dwhdb.txt >>${LOGFILE}
+	
+
+	${IQISQL} -Udba -Psql -Sdwh_reader_1 -i $DIR/temp3.sql -o $DIR/iqstatus_dwh_reader_1.txt -w9999
+
+	$ECHO "">>${LOGFILE}
+	$ECHO "sp_iqstatus output dwh_reader_1">>${LOGFILE}
+	$CAT $DIR/iqstatus_dwh_reader_1.txt >>${LOGFILE}
+
+$CAT > $DIR/temp4.sql  <<STOP_SQL_CODE_POINT
+sp_iqconnection
+go
+STOP_SQL_CODE_POINT
+
+
+
+	${IQISQL} -Udba -Psql -Sdwhdb -i $DIR/temp4.sql -o $DIR/Connections_dwhdb.txt -w9999
+
+	$ECHO "">>${LOGFILE}
+	$ECHO "sp_iqconnection output dwhdb">>${LOGFILE}
+	$CAT $DIR/Connections_dwhdb.txt >>${LOGFILE}
+	
+
+	${IQISQL} -Udba -Psql -Sdwh_reader_1 -i $DIR/temp4.sql -o $DIR/Connections_dwh_reader_1.txt -w9999
+
+	$ECHO "">>$${LOGFILE}
+	$ECHO "sp_iqconnection output dwh_reader_1">>${LOGFILE}
+	$CAT $DIR/Connections_dwh_reader_1.txt >>${LOGFILE}
+
+	$CAT > $DIR/temp5.sql  <<STOP_SQL_CODE_POINT
+sp_iqcontext
+go
+STOP_SQL_CODE_POINT
+
+
+
+	${IQISQL} -Udba -Psql -Sdwhdb -i $DIR/temp5.sql -o $DIR/iqcontext_dwhdb.txt -w9999
+
+	$ECHO "">>${LOGFILE}
+	$ECHO "sp_iqcontext output dwhdb">>${LOGFILE}
+	$CAT $DIR/iqcontext_dwhdb.txt >>${LOGFILE}
+	
+
+	${IQISQL} -Udba -Psql -Sdwh_reader_1 -i $DIR/temp5.sql -o $DIR/iqcontext_dwh_reader_1.txt -w9999
+
+	$ECHO "">>${LOGFILE}
+	$ECHO "sp_iqcontext output dwh_reader_1">>${LOGFILE}
+	$CAT $DIR/iqcontext_dwh_reader_1.txt >>${LOGFILE}
+
+$CAT > $DIR/temp6.sql  <<STOP_SQL_CODE_POINT
+sp_iqversionuse
+go
+STOP_SQL_CODE_POINT
+
+
+	${IQISQL} -Udba -Psql -Sdwh_reader_1 -i $DIR/temp6.sql -o $DIR/VersionUse_dwhdb.txt -w9999
+	
+	$ECHO "">>${LOGFILE}
+	$ECHO "sp_iqversionuse output dwhdb">>${LOGFILE}
+	$CAT $DIR/VersionUse_dwhdb.txt >>${LOGFILE}
+	
+	
+	${IQISQL} -Udba -Psql -Sdwh_reader_1 -i $DIR/temp6.sql -o $DIR/VersionUse_dwh_reader_1.txt -w9999
+	
+	$ECHO "">>${LOGFILE}
+	$ECHO "sp_iqversionuse output dwh_reader_1">>${LOGFILE}
+	$CAT $DIR/VersionUse_dwh_reader_1.txt >>${LOGFILE}
+	
+	$ECHO "">>${LOGFILE}
+	
+	rm -f $DIR/temp5.sql $DIR/VersionUse*.txt $DIR/temp4.sql $DIR/Connections*.txt $DIR/temp3.sql $DIR/iqstatus*.txt $DIR/temp6.sql $DIR/iqcontext*.txt
+fi
+	
+
+if [[  -s $DIR/send_temp.txt ]]
+then
+	if [ -z "${skip_email}"  ]; then
+		$CAT $DIR/send_temp.txt | mailx -s  "Issue on demo server please check logfile @ ${LOGFILE}" james.o.sullivan@ericsson.com paul.smith@ericsson.com stephen.dunne@ericsson.com vani.pr@tcs.com
+	fi
+	log_msg -s  "- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - " -l ${LOGFILE}
+	log_msg -s  "" -l ${LOGFILE}
+else
+	log_msg -s  "$(date +"%d-%m-%y_%H:%M:%S"): No issue on demo system " -l ${LOGFILE}
+	log_msg -s  "- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - " -l ${LOGFILE}
+	log_msg -s  "" -l ${LOGFILE}
+fi
+
+
+rm -f $DIR/temp1.sql $DIR/table_times_temp.txt $DIR/send_temp.txt $DIR/temp2.sql -o $DIR/iq_main_usage.txt 2>/dev/null
+remove_old_logs

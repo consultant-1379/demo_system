@@ -1,0 +1,253 @@
+#!/bin/bash 
+# ********************************************************************
+# Ericsson Radio Systems AB                                     SCRIPT
+# ********************************************************************
+#
+#
+# (c) Ericsson Radio Systems AB 2012 - All rights reserved.
+#
+# The copyright to the computer program(s) herein is the property
+# of Ericsson Radio Systems AB, Sweden. The programs may be used 
+# and/or copied only with the written permission from Ericsson Radio 
+# Systems AB or in accordance with the terms and conditions stipulated 
+# in the agreement/contract under which the program(s) have been 
+# supplied.
+#
+# ********************************************************************
+# Name    :
+# Date    : 
+# Revision: A
+# Purpose : 
+#
+# Usage   : 
+#
+# ********************************************************************
+#
+#   Command Section
+#
+# ********************************************************************
+#
+AWK=/usr/bin/awk
+BASENAME=/usr/bin/basename
+CAT=/usr/bin/cat
+CHMOD=/usr/bin/chmod
+CHOWN=/usr/bin/chown
+CP=/usr/bin/cp
+DATE=/usr/bin/date
+DIRNAME=/usr/bin/dirname
+ECHO=/usr/bin/echo
+EGREP=/usr/bin/egrep
+EXPR=/usr/bin/expr
+FIND=/usr/bin/find
+GETENT=/usr/bin/getent
+GEGREP=/usr/sfw/bin/gegrep
+GREP=/usr/bin/grep
+GTAR=/usr/sfw/bin/gtar
+GZCAT=/usr/bin/gzcat
+GZIP=/usr/bin/gzip
+HEAD=/usr/bin/head
+MYHOSTNAME=/usr/bin/hostname
+ID=/usr/bin/id
+INIT=/usr/sbin/init
+LN=/usr/bin/ln
+LS=/usr/bin/ls
+MKDIR=/usr/bin/mkdir
+MOUNT=/usr/sbin/mount
+MV=/usr/bin/mv
+NAWK=/usr/bin/nawk
+PGREP=/usr/bin/pgrep
+PWD=/usr/bin/pwd
+REBOOT=/usr/sbin/reboot
+RM=/usr/bin/rm
+SED=/usr/bin/sed
+SLEEP=/usr/bin/sleep
+SORT=/usr/bin/sort
+SU=/usr/bin/su
+SVCADM=/usr/sbin/svcadm
+SVCCFG=/usr/sbin/svccfg
+SVCS=/usr/bin/svcs
+TAIL=/usr/bin/tail
+TAR=/usr/sbin/tar
+TEE=/usr/bin/tee
+TOUCH=/usr/bin/touch
+WC=/usr/bin/wc
+
+# Name of SunOS & ENIQ ini Files
+ENIQ_INI=niq.ini
+
+### Function: abort_script ###
+#
+#   abort_script
+#
+# Arguments:
+#       error message
+# Return Values:
+#       none
+abort_script()
+{
+if [ "$1" ]; then
+    _err_msg_=$1
+else
+    _err_msg_="Script aborted.......\n"    
+fi
+$ECHO $($DATE +%d.%m.%y_%H:%M:%S) $_err_msg_   | tee -a $MYLOG
+
+exit 1
+}
+
+### Function: usage_msg ###
+#
+#   Print out the usage message
+#
+# Arguments:
+#       none
+# Return Values:
+#       none
+usage_msg()
+{
+$CLEAR
+$ECHO "
+Usage: `$BASENAME $0` -s NumberOfSlots[-l pathLogfileDirectory]
+
+options:
+    # Mandatory Fields
+        -s  :  Number of seperate DVTP processes to run
+
+
+    # Optional Fields
+        -l <log output directory, optional> Default: Logging disabled if not set
+    
+"
+exit 1
+}
+
+### Function: setup_env ###
+#
+# Setup up path environment etc
+#
+# Arguments:
+#   none
+# Return Values:
+#   DWH_port,DWH_eng and DBA password
+
+setup_env()
+{
+DEFAULT_USER="dcuser"
+
+
+}
+
+### Function: check_id ###
+#
+#   Check that the effective id of the user is correct
+#   If not print error msg and exit.
+#
+# Arguments:
+#       $1 : User ID name
+# Return Values:
+#       none
+check_id()
+{
+_check_id_=`$ID  | $AWK -F\( '{print $2}' | $AWK -F\) '{print $1}'`
+if [ "$_check_id_" != "$1" ]; then
+    _err_msg_="You must be $1 to execute this script."
+    abort_script "$_err_msg_"
+fi
+}
+
+### Function: createLogFile ###
+#
+#   Create a log file with passed path
+#   
+#
+# Arguments:
+#       $1 : log file full path
+# Return Values:
+#       none
+
+createLogFile()
+{
+logFileOutputDir=$1
+
+
+ if [[ ! -z  $logFileOutputDir ]]
+  then
+        
+        MYDATE=`date '+20%y%m%d'`
+		SERVER=$(uname -n)
+        MYLOG="${logFileOutputDir}/manage_stream_Datagen_${SERVER}_$MYDATE.log"
+
+        if [ ! -f $MYLOG ]
+        then
+                $TOUCH $MYLOG
+                
+        fi       
+        $ECHO " " | $TEE -a ${MYLOG}
+  else
+        MYLOG=/dev/null
+  fi
+ } 
+ 
+ check_args()
+{
+
+	########## Mandatory fields check ##################################
+
+	if [[ -z $NumberOfSlots ]]
+	then
+		echo "ERROR: You must set the number of separate DVTP processes to run" | tee -a $MYLOG
+		usage_msg
+	fi
+	
+}
+# ********************************************************************
+#
+#   Main body of program
+#
+# ********************************************************************
+#
+while getopts "i:o:t:h:l:n:d:f:r:k:z:c:p:u:s:" arg
+do
+    case $arg in
+        l) logFileOutputDir="$OPTARG"
+			;;
+		s) NumberOfSlots="$OPTARG"
+			;;
+        \?) usage_msg
+            exit 1
+            ;;
+    esac
+done
+ 
+ # Pull in the environment
+setup_env
+setup_env_ec=$?
+if [ $setup_env_ec -ne 0 ]; then
+    _err_msg_="Could not set_env"
+    abort_script "$_err_msg_"
+fi
+
+
+# Check that the effective id of the user is dcuser
+check_id $DEFAULT_USER
+
+# Check the args supplied
+check_args
+
+createLogFile $logFileOutputDir
+numberOfProcesses=$(/usr/ucb/ps -auxwww | grep -i dvtp_automation_datagen.jar | grep -v grep | wc -l)
+
+while [ ${numberOfProcesses} -lt ${NumberOfSlots} ]
+do
+	
+	number=$((numberOfProcesses + 1))
+	echo "$(date +'%d-%m-20%y %H:%M:%S') Starting DVTP Process ${number}." | tee -a $MYLOG
+	cd /eniq/home/dcuser/dvtp_Datagen_stream/
+	nohup /eniq/backup/java/jdk1.7.0_51/bin/java -jar dvtp_automation_datagen.jar --connector=Basic --stream=Pgw --host=atrcxb1839.athtem.eei.ericsson.se --port=3210 & >  /dev/null 
+	numberOfProcesses=$(/usr/ucb/ps -auxwww | grep -i dvtp_automation_datagen.jar | grep -v grep | wc -l)
+done
+
+if [ ${numberOfProcesses} -ge ${NumberOfSlots} ]
+then
+	echo "$(date +'%d-%m-20%y %H:%M:%S') The maximum number of ${NumberOfSlots} parallel DVTP datagen streams are running. (Note... This is set as a parameter passed into the script via the cron/cli)" | tee -a $MYLOG
+fi

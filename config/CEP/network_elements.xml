@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<appconfig xmlns="http://www.ericsson.com/app-config">
+<hosts>
+	<host master="true" ip="10.45.193.74">
+	  <process procid="1">
+	  		<!-- Unique label should be defined for every network element. The label should contain only letters and/or digits. -->			
+			<network-elements>
+				<network-element ne-type="1"> 
+				 	<label>WK10R</label>
+				 	<directory>/eniq/backup/CEP/events_oss_1/GPEHEvents_CEP/SubNetwork=WK10R</directory>
+				</network-element>
+			</network-elements>
+		</process>
+		 		
+		<process procid="2">	
+			<network-elements>
+				<network-element ne-type="2"> 
+				 	<label>SGSN56S</label>
+				 	<directory>/eniq/backup/CEP/events_oss_1/sgeh_cep/ManagedElement=SGSN56S</directory>
+				</network-element>
+			</network-elements>
+		</process>
+		
+		<process procid="3">	
+			<network-elements>
+				<network-element ne-type="3">
+					<ip>10.45.193.74</ip>
+		 			<uname>dcuser</uname>
+		   			<password>9cfEm2sYUMrBzZ02msqOiA==</password>
+				 	<label>PCP1</label>
+				 	<directory>/eniq/backup/CEP/pcp/output/</directory>
+				</network-element>
+			</network-elements>
+		</process>
+		
+	</host>
+</hosts>
+</appconfig>
+
+		

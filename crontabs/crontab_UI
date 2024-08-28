@@ -1,0 +1,4 @@
+#DVTP
+* * * * *  bash /eniq/home/dcuser/dvtp_Datagen_stream/Manage_stream_Datagen.bsh -s 3 -l /eniq/home/dcuser/dvtp_Datagen_stream/ >>  /dev/null 2>&1
+
+

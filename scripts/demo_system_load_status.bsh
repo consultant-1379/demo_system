@@ -1,0 +1,175 @@
+#!/bin/bash 
+# ********************************************************************
+# Ericsson Radio Systems AB                                     SCRIPT
+# ********************************************************************
+#
+#
+# (c) Ericsson Radio Systems AB 2012 - All rights reserved.
+#
+# The copyright to the computer program(s) herein is the property
+# of Ericsson Radio Systems AB, Sweden. The programs may be used 
+# and/or copied only with the written permission from Ericsson Radio 
+# Systems AB or in accordance with the terms and conditions stipulated 
+# in the agreement/contract under which the program(s) have been 
+# supplied.
+#
+# ********************************************************************
+# Name    : base_table_rowcount.bsh
+# Date    : 13/05/2014
+# Revision: A
+# Purpose : Provide a row-count of base table for raw against all others
+#			individual row is in rowcount_raw.txt &rowcout_other.txt
+#			full row-counts in TotalRowCount.txt
+#
+# Usage   : bash base_table_rowcount
+#
+
+AWK=/usr/bin/awk
+BASENAME=/usr/bin/basename
+CAT=/usr/bin/cat
+CHMOD=/usr/bin/chmod
+CHOWN=/usr/bin/chown
+CP=/usr/bin/cp
+DATE=/usr/bin/date
+DIRNAME=/usr/bin/dirname
+ECHO=/usr/bin/echo
+EGREP=/usr/bin/egrep
+EXPR=/usr/bin/expr
+FIND=/usr/bin/find
+GETENT=/usr/bin/getent
+GREP=/usr/bin/grep
+GTAR=/usr/sfw/bin/gtar
+GZCAT=/usr/bin/gzcat
+GZIP=/usr/bin/gzip
+HEAD=/usr/bin/head
+MYHOSTNAME=/usr/bin/hostname
+ID=/usr/bin/id
+INIT=/usr/sbin/init
+LN=/usr/bin/ln
+LS=/usr/bin/ls
+MKDIR=/usr/bin/mkdir
+MOUNT=/usr/sbin/mount
+MV=/usr/bin/mv
+NAWK=/usr/bin/nawk
+PGREP=/usr/bin/pgrep
+PWD=/usr/bin/pwd
+REBOOT=/usr/sbin/reboot
+RM=/usr/bin/rm
+SED=/usr/bin/sed
+SLEEP=/usr/bin/sleep
+SORT=/usr/bin/sort
+SU=/usr/bin/su
+SVCADM=/usr/sbin/svcadm
+SVCCFG=/usr/sbin/svccfg
+SVCS=/usr/bin/svcs
+TAIL=/usr/bin/tail
+TAR=/usr/sbin/tar
+TEE=/usr/bin/tee
+TOUCH=/usr/bin/touch
+WC=/usr/bin/wc
+# Name of SunOS & ENIQ ini Files
+ENIQ_INI=niq.ini
+
+# ********************************************************************
+#
+# 	Main body of program
+#
+# ********************************************************************
+#
+. /eniq/sybase_iq/IQ-15_2/IQ-15_2.sh
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+ 
+$RM -f $DIR/send_temp.txt  2>/dev/null
+touch $DIR/send_temp.txt
+#query
+$CAT > $DIR/temp1.sql  <<STOP_SQL_CODE_POINT
+
+DECLARE @utctime timestamp
+set @utctime=(select CURRENT UTC TIMESTAMP)
+
+select 'EVENT_E_SGEH_ERR_RAW,'|| datediff(mi, (select max(datetime_id)  from dc.EVENT_E_SGEH_ERR_RAW where EVENT_SOURCE_NAME='SGSN56S'), @utctime) union all
+select 'event_e_ran_cfa_err_raw,'||  datediff(mi, (select max(datetime_id) from dc.event_e_ran_cfa_err_raw where HIER3_ID=6065638830066245486), @utctime) union all
+select 'event_E_user_plane_classification_raw,'||  datediff(mi, (select max(datetime_id) from dc.event_E_user_plane_classification_raw where IMSI_MNC='01' and IMSI_MCC='466'), @utctime) union all
+select 'event_E_user_plane_tcp_raw,'||  datediff(mi,(select max(datetime_id) from dc.event_E_user_plane_tcp_raw where HIER3_ID=6065638830066245486), @utctime) union all
+select 'EVENT_E_RAN_SESSION_RAW,'||  datediff(mi, (select max(datetime_id) from dc.EVENT_E_RAN_SESSION_RAW where IMSI_MNC='01' and IMSI_MCC='466'), @utctime) union all
+select 'EVENT_E_CORE_SESSION_RAW,'||  datediff(mi, (select max(datetime_id) from dc.EVENT_E_CORE_SESSION_RAW where IMSI > 466010000000000), @utctime) union all
+--select 'EVENT_E_MSS_LOC_SERVICE_CDR_ERR_RAW,'||  datediff(mi, (select max(datetime_id) from dc.EVENT_E_MSS_LOC_SERVICE_CDR_ERR_RAW), @utctime) union all
+--select 'EVENT_E_MSS_LOC_SERVICE_CDR_SUC_RAW,'||  datediff(mi,(select max(datetime_id) from dc.EVENT_E_MSS_LOC_SERVICE_CDR_SUC_RAW ), @utctime) union all
+--select 'EVENT_E_MSS_SMS_CDR_ERR_RAW,'||  datediff(mi, (select max(datetime_id) from dc.EVENT_E_MSS_SMS_CDR_ERR_RAW ), @utctime) union all
+select 'EVENT_E_MSS_SMS_CDR_SUC_RAW,'||  datediff(mi, (select max(datetime_id) from dc.EVENT_E_MSS_SMS_CDR_SUC_RAW ), @utctime) union all
+select 'EVENT_E_MSS_VOICE_CDR_DROP_CALL_RAW,'||  datediff(mi, (select max(datetime_id) from dc.EVENT_E_MSS_VOICE_CDR_DROP_CALL_RAW ), @utctime) union all
+select 'EVENT_E_MSS_VOICE_CDR_ERR_RAW,'||  datediff(mi, (select max(datetime_id) from dc.EVENT_E_MSS_VOICE_CDR_ERR_RAW ), @utctime) union all
+select 'EVENT_E_MSS_VOICE_CDR_SUC_RAW,'||  datediff(mi, (select max(datetime_id) from dc.EVENT_E_MSS_VOICE_CDR_SUC_RAW ), @utctime) union all
+select 'EVENT_E_DVTP_DT_RAW,'||  datediff(mi, (select max(datetime_id) from dc.EVENT_E_DVTP_DT_RAW ), @utctime)
+go
+STOP_SQL_CODE_POINT
+
+
+ iqisql -Udba -Psql -Sdwhdb -i $DIR/temp1.sql -o $DIR/table_times_temp.txt -w999
+
+
+
+table_times=$(cat $DIR/table_times_temp.txt| sed '1,2d'|sed '$d'|sed '$d' )
+
+
+for table_time in $table_times
+do
+	table=`$ECHO $table_time | cut -d',' -f1 `
+	time=`$ECHO $table_time | cut -d',' -f2 `
+	if [[ -z $time ]]
+	then 
+		time=9999
+	fi
+	#echo "${table}  time is ${time}"
+	if [ $time -ge 720 ]
+	then
+		echo "$(date +"%d-%m-%y_%H:%M:%S") Issue with ${table} as max datetime is older than expected @ ${time} minutes." >> $DIR/send_temp.txt
+	
+	fi
+done
+
+dbping -q -c "con=dwh_reader_1;eng=dwh_reader_1;links=tcpip{host=dwh_reader_1;port=2642;dobroadcast=none;verify=no};uid=dba;pwd=sql"
+if [ "$?" -ne "0" ]; then
+	echo "$(date +"%d-%m-%y_%H:%M:%S") Issue cannot ping dwh_reader_1." >> $DIR/send_temp.txt
+fi
+dbping -q -c "con=dwhdb;eng=dwhdb;links=tcpip{host=dwhdb;port=2640;dobroadcast=none;verify=no};uid=dba;pwd=sql"
+if [ "$?" -ne "0" ]; then
+	echo "$(date +"%d-%m-%y_%H:%M:%S") Issue cannot ping dwhdb." >> $DIR/send_temp.txt
+fi
+
+
+
+nas_status=$(svcs -a | grep NAS-online| nawk '{print $1}')
+
+if [ "${nas_status}" != "online" ]; then
+	echo "$(date +"%d-%m-%y_%H:%M:%S") Issue nas not online." >> $DIR/send_temp.txt
+fi
+
+declare -a ports=('14848' '18080' '15050');
+
+
+for p in "${ports[@]}"
+do
+	glassfish_out=$( ssh -t -t -o StrictHostKeyChecking=no -o BatchMode=yes -q dcuser@glassfish "exec 3>/dev/tcp/glassfish/${p}") 
+	echo $glassfish_out| grep refused >/dev/null
+	if [ $? -eq 0 ]
+	then
+		echo "$(date +"%d-%m-%y_%H:%M:%S") Connection not possible to the Glassfish server on port \"${p}\"." >> $DIR/send_temp.txt
+	fi
+done
+
+
+webserver_out=$( ssh -t -t -o StrictHostKeyChecking=no -o BatchMode=yes -q dcuser@glassfish "exec 3>/dev/tcp/webserver/8443") 
+echo $webserver_out| grep refused >/dev/null
+if [ $? -eq 0 ]
+then
+	echo "$(date +"%d-%m-%y_%H:%M:%S") Connection not possible to the webserver on port \"8443\"." >> $DIR/send_temp.txt
+fi
+
+
+if [[  -s $DIR/send_temp.txt ]]
+then
+	cat $DIR/send_temp.txt | mailx -s 'Issue on demo server' alan.fergus@ericsson.com stephen.dunne@ericsson.com
+fi
+
+rm -f $DIR/temp1.sql $DIR/table_times_temp.txt $DIR/send_temp.txt 2>/dev/null

@@ -1,0 +1,18 @@
+#!/bin/bash
+
+
+_os_=$(uname)
+
+if [ "${_os_}" == "SunOS" ]; then
+	_date_minus1hr=$( TZ=UTC date +%Y%m%d%H%M)
+	_date_minus4hr=$( TZ=UTC+3 date +%Y%m%d%H%M)
+	touch -t ${_date_minus1hr} /tmp/marker_date_${_date_minus1hr}
+	touch -t ${_date_minus4hr} /tmp/marker_date_${_date_minus4hr}
+	find /eniq/backup/CEP/pcp/output/ -name "*.log-1.gz" ! -newer /tmp/marker_date_${_date_minus1hr} -exec rm -f {} \;
+	find /eniq/data/pushData/00/mss/GZS25/ -name "GZS25.*" ! -newer /tmp/marker_date_${_date_minus4hr} -exec rm -f {} \;
+	rm /tmp/marker_date_${_date_minus1hr} /tmp/marker_date_${_date_minus4hr}
+elif [ "${_os_}" == "Linux" ]; then
+	find /eniq/backup/CEP/pcp/output/ -name "*.log-1.gz" -mmin +60 -exec rm -f {} \;
+	find /eniq/data/pushData/00/mss/GZS25 -name "GZS25*" -mmin +240  | xargs rm 
+
+fi

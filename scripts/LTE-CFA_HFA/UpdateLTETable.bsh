@@ -1,0 +1,164 @@
+#!/bin/bash 
+. /eniq/home/dcuser/.profile
+
+export TZ=Etc/UTC
+
+declare -a TABLES_ARRAY
+
+#logFile=/eniq/backup/foo/test.txt
+logFile=/dev/null
+
+#Ensure that the script is exected in the current directory where it resides. Therefore any relative path will now apply
+Current_Wrk_Dir=`dirname $0`
+cd ${Current_Wrk_Dir}
+Tmp_Dir=${Current_Wrk_Dir}
+
+TEE=/usr/bin/tee
+ECHO=/usr/bin/echo
+DATE=/usr/bin/date
+CAT=/usr/bin/cat
+RM=/usr/bin/rm
+
+additionalColumns=""
+
+${ECHO} "************************************" | ${TEE} -a ${logFile}
+dateNow=`"${DATE}" '+%Y:%m:%d'`
+TABLES=`/eniq/sw/bin/engine -e getTableNamesForRawEvents "$1" "${dateNow}:00:00" "${dateNow}:23:59"`
+
+
+if [[ "${TABLES}" == *Invalid* ]] 
+then
+		$ECHO "ERROR: The following error was as a result of specifying argument '$1'"  | ${TEE} -a ${logFile}
+		$ECHO "ERROR: ${TABLES}"  | ${TEE} -a ${logFile}
+		exit 1
+fi 
+
+
+
+
+
+updateTable(){
+	additionalColumns=""
+	sqlFile=`mktemp -p $Tmp_Dir -t ExtTabSql.XXXXXXXXXX`
+	
+$ECHO "DEBUG: updateTable() argument: $1" | $TEE -a $logFile
+
+if [[ "$1" != *ERAB* ]] 
+then
+		$ECHO "DEBUG: MCC and MNC needs to be included"
+		additionalColumns="MNC='06',MCC='454',IMSI_MNC='06',IMSI_MCC='454',"
+fi 
+
+$ECHO "DEBUG: updateTable() additionalColumns:${additionalColumns}"	| $TEE -a $logFile
+	
+	
+$CAT > $sqlFile  <<STOP_SQL_CODE_POINT
+create table #tempTACTable (TACLIST int);
+INSERT INTO #tempTACTable (TACLIST) VALUES (35315305);
+INSERT INTO #tempTACTable (TACLIST) VALUES (35332005);
+INSERT INTO #tempTACTable (TACLIST) VALUES (35332105);
+INSERT INTO #tempTACTable (TACLIST) VALUES (35332205);
+INSERT INTO #tempTACTable (TACLIST) VALUES (35721505);
+INSERT INTO #tempTACTable (TACLIST) VALUES (35727204);
+INSERT INTO #tempTACTable (TACLIST) VALUES (35740205);
+INSERT INTO #tempTACTable (TACLIST) VALUES (35757705);
+INSERT INTO #tempTACTable (TACLIST) VALUES (35794505);
+INSERT INTO #tempTACTable (TACLIST) VALUES (1332700);
+INSERT INTO #tempTACTable (TACLIST) VALUES (1332800);
+INSERT INTO #tempTACTable (TACLIST) VALUES (1332900);
+INSERT INTO #tempTACTable (TACLIST) VALUES (1333000);
+INSERT INTO #tempTACTable (TACLIST) VALUES (1333100);
+INSERT INTO #tempTACTable (TACLIST) VALUES (35800005);
+INSERT INTO #tempTACTable (TACLIST) VALUES (35802605);
+INSERT INTO #tempTACTable (TACLIST) VALUES (35802705);
+INSERT INTO #tempTACTable (TACLIST) VALUES (35802805);
+INSERT INTO #tempTACTable (TACLIST) VALUES (35378405);
+INSERT INTO #tempTACTable (TACLIST) VALUES (35378605);
+INSERT INTO #tempTACTable (TACLIST) VALUES (35492805);
+INSERT INTO #tempTACTable (TACLIST) VALUES (35502405);
+INSERT INTO #tempTACTable (TACLIST) VALUES (35845105);
+INSERT INTO #tempTACTable (TACLIST) VALUES (35508104);
+INSERT INTO #tempTACTable (TACLIST) VALUES (35724605);
+INSERT INTO #tempTACTable (TACLIST) VALUES (35730105);
+INSERT INTO #tempTACTable (TACLIST) VALUES (35734005);
+
+declare @maxNumberOfRowInTmpTable int
+
+set  @maxNumberOfRowInTmpTable=(select  max(ROWID ( #tempTACTable )) from #tempTACTable)
+
+
+UPDATE $1 SET ${additionalColumns} IMSI=
+if(MIN_ID>0)
+then
+'11106'+substring(convert(varchar(10), $1.MIN_ID*$1.HIER321_ID), 1, 10)
+else
+'11106'+substring(convert(varchar(10), 3*$1.HIER321_ID), 1, 10)
+end if 
+, TAC = referanceTable.TACLIST  
+FROM  
+(  
+select
+if(MIN_ID=0)
+then
+       CONVERT(INT, substring(convert(varchar(10), 3*HIER321_ID), 2, 1))+1       
+else  
+        if(CONVERT(INT, substring(convert(varchar(10), MIN_ID*HIER321_ID), 2, 2)) > 27 )
+        then
+                CONVERT(INT, substring(convert(varchar(10), MIN_ID*HIER321_ID), 2, 1))+1
+        else
+                if(CONVERT(INT, substring(convert(varchar(10), MIN_ID*HIER321_ID), 2, 2)) < 1)
+                then
+                        CONVERT(INT, substring(convert(varchar(10), MIN_ID*HIER321_ID), 2, 2))+1
+                else
+                        1
+        
+                end if                
+        end if 
+end if
+as TACKey, #tempTACTable.TACLIST, EVENT_TIME, HIER321_ID from $1,#tempTACTable
+where TACKey=ROWID ( #tempTACTable ) and $1.TAC is null
+
+
+) referanceTable 
+WHERE $1.EVENT_TIME = referanceTable.EVENT_TIME 
+
+
+
+drop table #tempTACTable;
+
+STOP_SQL_CODE_POINT
+	
+
+#dbisqlMsg=`dbisql  -c "eng=dwhdb;links=tcpip{host=dwhdb;port=2640};uid=dc;pwd=dc" -nogui $sqlFile`
+dbisqlMsg=`dbisql -c "eng=dwh_reader_1;links=tcpip{host=dwh_reader_1;port=2642};uid=dc;pwd=dc" -nogui -onerror exit  $sqlFile `
+#dbisqlMsg=`dbisql -c "eng=dwh_reader_1;links=tcpip{host=dwh_reader_1;port=2642};uid=dc;pwd=dc" -nogui  $sqlFile`
+
+
+# The table name is pushed into finished log only if not in error
+if [ $? -eq 0 ]
+then
+	$ECHO "*****************************************************************************************************************" | $TEE -a $logFile
+    $ECHO `"$DATE" "+%d-%m-%Y %T"` "Successfully updated table: $1 " | $TEE -a $logFile
+	$ECHO ${dbisqlMsg}
+else
+    $ECHO "*****************************************************************************************************************" | $TEE -a $logFile
+    $ECHO `"$DATE" "+%d-%m-%Y %T"` "Error updating table: $1 "... | $TEE -a $logFile
+	$ECHO ${dbisqlMsg} | $TEE -a $logFile
+fi
+
+$RM ${sqlFile} 
+}
+
+
+#Convert the string into an array 
+TABLES_ARRAY=($TABLES) 
+${ECHO} "DEBUG: " `date '+%d-%m-%Y %T'` | ${TEE} -a ${logFile}
+${ECHO} "DEBUG: " "Found ${#TABLES_ARRAY[@]} table(s) of type '$1'" | ${TEE} -a ${logFile}
+		for (( x=0 ; x<${#TABLES_ARRAY[@]} ; x++))
+		do
+		let count=${x}+1
+              ${ECHO} "DEBUG: ${count})." ${TABLES_ARRAY[$x]} | ${TEE} -a ${logFile}
+			  updateTable ${TABLES_ARRAY[$x]}
+		done
+
+

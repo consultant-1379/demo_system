@@ -1,0 +1,539 @@
+#!/bin/bash
+
+
+# Initialize some variables
+fileTimeZone="+0000" #Timezone offset on the filenames
+OFFSET_INPUT=0
+TZ=UTC #Timezone default
+
+declare -a FILE_TO_BE_PROCESSED_ARRAY
+
+## Hardcoded Values ##
+RPL=900
+
+
+## Functions ##
+
+usage_msg()
+{
+	echo "Usage: $0
+
+		# Mandatory Fields
+		-i <source data directory> # This directory should contain the input files within sub directories called Day_1, Day_2 etc
+		-n <unique node name> # This name should be the unique node name
+		-o <eniq collection directory for node> # 
+		-p <pattern to match> #Sgeh/Gpeh/CTUM/CTR/MSS enter S,G,CTUM or CTR, MSS
+		
+		# Optional Fields
+		-c  <Path to the cep directory> #If Session Browser is required and there is a CEP server located with the demo system. 
+		-t <timezone, eg CET or Africa/Cairo > # Default: UTC
+		-h <hour string eg +0100> # Default: 0000
+		-l <log output directory, optional> Default: Logging disabled if not set
+        -r <ROP value, eg 60 (for files collected every 1 min), 900 (for files collected every 15 min)> # Default 900
+		-u <Update the header for celltrace files> # Location for the temporary (intermediate) files are to be updated
+		-k <Day_offset> # Number of days to offset by
+		
+		# Fixed Day Loading, set both options to enable fixed day loading instead of live loading (requires mapToInternalSGEH to have date hardcoded)
+		-d <Source data directory day to use, eg 4>
+		-f <fixed_date to simulate, eg 20111231>"
+	exit 1
+}
+
+createLogFile()
+{
+logFileOutputDir=$1
+LOGGING_ENABLED=$2
+nodeName=$3
+
+ if [[ "$LOGGING_ENABLED" == "YES" ]]
+  then
+        HEADER_UPDATE_LOGGING_ENABLED="YES"
+        MYDATE=$(date '+20%y%m%d')
+        MYLOG="${logFileOutputDir}/getFile_${nodeName}_$MYDATE.log"
+
+        if [ ! -f $MYLOG ]
+        then
+                touch $MYLOG
+				
+        fi
+		echo "" >>$MYLOG
+		echo "" >>$MYLOG
+		echo  "INFO-> Starting new run of getFiles_common.bsh for ${nodeName}  PID is $$ " >>$MYLOG
+		
+		
+  else
+        MYLOG=/dev/null
+		HEADER_UPDATE_LOGGING_ENABLED="NO"
+  fi
+ } 
+
+make_temp_dir()
+{
+	tmpDir="${referenceFilesLocation}/temp/${nodeName}/" 
+	rm -rf ${tmpDir}
+	mkdir -p ${tmpDir}
+}
+
+check_owner()
+{
+	if [[ ! $(id | grep dcuser) ]]
+	then
+		echo "ERROR: You must be dcuser to run this script" | tee -a $MYLOG
+		exit 1
+	fi
+}
+
+check_args()
+{
+
+	########## Mandatory fields check ##################################
+
+	if [[ -z $nodeName ]]
+	then
+		echo "ERROR: You must set the node name using -n <unique node name>" | tee -a $MYLOG
+		usage_msg
+	fi
+
+		if [[ -z ${referenceFilesLocation} ]]
+        then
+                echo "ERROR: You must set the source data directory using -i <source data directory>" | tee -a $MYLOG
+                usage_msg
+        fi
+
+	#####################################################################
+
+
+	########### Fixed date check ######
+
+	if [[ -z $WORKING_DAY_NO ]] && [[ ! -z $FIXED_DATE ]]
+	then
+		echo "ERROR: If -f is set, -d must also be set"| tee -a $MYLOG
+		usage_msg
+	fi
+
+	if [[ ! -z $WORKING_DAY_NO ]] && [[ -z $FIXED_DATE ]]
+        then
+		echo "ERROR: If -d is set, -f must also be set"| tee -a $MYLOG
+		usage_msg
+    fi
+
+	if  [ "$pattern" != "S" ] 
+	then
+		if  [ "$pattern" != "G" ]
+		then
+			if  [ "$pattern" != "CTUM" ]
+			then
+				if  [ "$pattern" != "CTR" ]
+				then
+					if  [ "$pattern" != "MSS" ]
+					then
+						echo "ERROR: Pattern must be set to S for sgeh or G for gpeh or CTUM for ctum or CTR for ctr or MSS for mss"| tee -a $MYLOG
+						exit 1
+					else
+						echo "INFO-> Pattern is set to $pattern for run" | tee -a $MYLOG
+					fi
+				else
+					echo "INFO-> Pattern is set to $pattern for run" | tee -a $MYLOG
+				fi
+			else
+				echo "INFO-> Pattern is set to $pattern for run" | tee -a $MYLOG
+			fi
+
+		else
+			echo "INFO-> Pattern is set to $pattern for run" | tee -a $MYLOG
+		fi
+	else
+		echo "INFO-> Pattern is set to $pattern for run" | tee -a $MYLOG
+	fi
+	
+
+	##### Set the referenceFilesLocation related fields
+
+	if [[ ! -d ${referenceFilesLocation} ]]
+	then
+	    echo "ERROR: References files directory ${referenceFilesLocation} doesn't exist.....Please check the path...exiting"| tee -a $MYLOG
+	    exit 1
+	fi
+
+	## Now check if the output directory exists
+
+	if [ ! -d "${outputPath}" ]
+	then
+	    echo "Output Path Directory ${outputPath} doesn't exist... Please check the path... exiting"| tee -a $MYLOG
+        exit 1
+	fi
+
+
+	#########################################
+
+	###### Validate the timezone
+	if [[ ! `file /usr/share/lib/zoneinfo/$TZ | grep "timezone"` ]]
+	then
+		echo "ERROR: The timezone you set doesn't look correct. See /usr/share/lib/zoneinfo/ for list of timezones"| tee -a $MYLOG
+		exit 1
+	fi
+
+	#####################################################################
+}
+
+check_already_running ()
+{
+	if ( set -C; echo "$$" > "$LOCKFILE") 2> /dev/null;
+        then
+                trap 'rm -f "$LOCKFILE"; exit $?' INT TERM EXIT
+	else
+		echo "INFO-> The $(date '+Date:%d-%m-20%y, Time:%H:%M:%S') getFile must already be running, the lockfile $LOCKFILE already exists..."| tee -a $MYLOG
+		exit 0
+	fi
+}
+
+getNewTime() {
+
+        YYMM=`echo $1 | cut -c1-6`
+        DD=`echo $1 | cut -c7,8`
+        hh=`echo $1 | cut -c9,10`
+        mm=`echo $1 | cut -c11,12`
+        ss=`echo $1 | cut -c13,14`
+
+        Inseconds=`expr $hh \* 3600  + $mm \*  60  + $ss `
+        newTimeInseconds=`expr $Inseconds $3 $2`
+
+        seconds=`expr $newTimeInseconds % 60`
+        minute_tmp=`expr $newTimeInseconds % 3600`
+        minute=`expr $minute_tmp / 60`
+        hour_tmp=`expr $newTimeInseconds / 3600 `
+        hour=`expr $hour_tmp % 24`
+
+#Days rollover
+
+        add_days=`expr $hour_tmp / 24`
+        DD=`expr $DD + $add_days`
+
+        newTime=`printf "%02d%02d%02d%02d" $DD $hour $minute $seconds`
+
+        echo ${YYMM}$newTime
+
+}
+
+mySubroutine()
+{
+    timeInSeconds=`expr $1 \* 3600 + $2 \* 60 + $3`
+    adjustValue=`expr $timeInSeconds % $RPL`
+    sleepTill=`expr $RPL - $adjustValue`
+    echo $sleepTill
+}
+
+
+
+liveLoadData()
+{
+
+while [ 1 ]
+do
+	MYDATE=$(date '+20%y%m%d')
+	if [  "$MYLOG" != "${logFileOutputDir}/getFile_${nodeName}_$MYDATE.log" ]
+	then
+			echo "Logging-> Bumping on Log file to ${logFileOutputDir}/getFile_${nodeName}_$MYDATE.log."| tee -a $MYLOG
+			createLogFile $logFileOutputDir $LOGGING_ENABLED $nodeName
+    fi
+	# Figure out the day
+    SECONDS_SINCE_1970=`perl -e 'print int(time)'`
+    DAYS_SINCE_1970=`expr $SECONDS_SINCE_1970 / 86400`
+
+	# Figure out the number of days on the fly
+	NUMBER_OF_DAYS=`ls ${referenceFilesLocation} | grep -c "Day_"`
+	DAY_MOD=`expr $DAYS_SINCE_1970 % $NUMBER_OF_DAYS`
+
+	# Offset calculation
+	DAY_OFFSET=`expr $DAY_MOD + $OFFSET_INPUT + $NUMBER_OF_DAYS + $NUMBER_OF_DAYS + $NUMBER_OF_DAYS`
+	DAY_MOD=`expr $DAY_OFFSET % $NUMBER_OF_DAYS`
+
+	#echo day offset is $DAY_OFFSET
+	#echo day mod is $DAY_MOD
+
+	# Can't start at day 0, so always add 1 to the number
+	DAY_MOD=`expr $DAY_MOD + 1`
+
+        WORKING_DAY="Day_${DAY_MOD}"
+        echo "DEBUG-> The value of WORKING_DAY is "$WORKING_DAY | tee -a $MYLOG
+        ######
+
+
+    DATENOW=$(date '+20%y%m%d%H%M%S')
+    hh=$(echo $DATENOW | cut -c9,10)
+    mm=$(echo $DATENOW | cut -c11,12)
+    ss=$(echo $DATENOW | cut -c13,14)
+    #echo "$hh $mm $ss"
+
+    timeToSleep=$(mySubroutine $hh $mm $ss)
+    #echo "timeToSleep=$timeToSleep"
+
+    echo "INFO-> Waiting "$timeToSleep" seconds" | tee -a $MYLOG
+    sleep $timeToSleep
+    #echo "Please wait while I generate files for you...."
+
+	#checking is NAS is fully online before processing
+	NASOnline_status=$(svcs -a | grep NAS-online |nawk -F " " '{print $1}')
+	
+	if [[ "${NASOnline_status}" == "offline" ]]
+
+	then
+		echo "ERROR-> Skipping processing this rop for ${nodeName} as NAS-Online service is ${NASOnline_status}."| tee -a $MYLOG
+		continue
+	fi
+    
+	if [[ "${pattern}" == "MSS" ]]
+	then
+		newTimeStamp=$(getNewTime $DATENOW $timeToSleep +)
+		#echo $newTimeStamp
+		beginTimeStamp=$(getNewTime $newTimeStamp $RPL -)
+
+		currentFileDate=$(echo $newTimeStamp | cut -c3-8)
+		rop_start=$(echo $beginTimeStamp | cut -c9-12)
+	#estepdu
+		#findstrg="${nodeName}.*0720*+*.*+*"
+		findstrg="${rop_start}*"
+	else
+		newTimeStamp=$(getNewTime $DATENOW $timeToSleep +)
+		beginTimeStamp=$(getNewTime $newTimeStamp $RPL -)
+		currentFileDate=$(echo $newTimeStamp | cut -c1-8)
+		rop_start=$(echo $beginTimeStamp | cut -c9-12)
+		rop_end=$(echo $newTimeStamp | cut -c9-12)
+
+	
+		findstrg="*A*.${rop_start}*${rop_end}*"
+	fi
+   
+	echo "INFO-> Current Date and Time -> $(date '+Date:%d-%m-20%y, Time:%H:%M:%S')" | tee -a $MYLOG
+	echo "DEBUG-> currentFileDate: "${currentFileDate} | tee -a $MYLOG
+
+	echo "DEBUG-> referenceFilesLocation="${referenceFilesLocation}| tee -a $MYLOG
+	echo "DEBUG-> findstrg="${findstrg}| tee -a $MYLOG
+	echo "DEBUG-> find files with time=${findstrg}"  | tee -a $MYLOG
+
+		
+
+
+
+		
+	##Get a list of files that need to be processed
+	#FILE_TO_BE_PROCESSED=`find "${referenceFilesLocation}/$WORKING_DAY/" -type f -name "${findstrg}"`
+	##Convert the string into an array 
+	#FILE_TO_BE_PROCESSED_ARRAY=($FILE_TO_BE_PROCESSED)
+
+
+	if [ -d "${referenceFilesLocation}/$WORKING_DAY/" ]; then
+		# Control will enter here if $DIRECTORY exists.
+		echo "INFO-> Directory ...'"${referenceFilesLocation}"/$WORKING_DAY/' exists!" | tee -a $MYLOG
+	fi
+		
+
+
+
+		#estepdu		
+	countRetries=0;
+	while [ $countRetries -ne 5 ]
+	do
+		#Get a list of files that need to be processed
+		if [[ "${pattern}" == "MSS" ]]
+		then
+			FILE_TO_BE_PROCESSED_file=$(find "${referenceFilesLocation}${WORKING_DAY}/" -type f \( -name GZS25.EMM_32.111103"${findstrg}" -o -name GZS25.EMM_32.111104"${findstrg}" \))
+			FILE_TO_BE_PROCESSED_link=$(find "${referenceFilesLocation}${WORKING_DAY}/" -type l \( -name GZS25.EMM_32.111103"${findstrg}" -o -name GZS25.EMM_32.111104"${findstrg}" \))
+			echo "DEBUG-> find files command =find "${referenceFilesLocation}/$WORKING_DAY/" -type f \( -name GZS25.EMM_32.111103"${findstrg}" -o -name GZS25.EMM_32.111104"${findstrg}" \)"| tee -a $MYLOG
+			echo "DEBUG-> find symbolic links command=find "${referenceFilesLocation}/$WORKING_DAY/" -type l \( -name GZS25.EMM_32.111103"${findstrg}" -o -name GZS25.EMM_32.111104"${findstrg}" \)"| tee -a $MYLOG
+		else
+			FILE_TO_BE_PROCESSED_file=$(find "${referenceFilesLocation}${WORKING_DAY}/" -type f -name "${findstrg}")
+			FILE_TO_BE_PROCESSED_link=$(find "${referenceFilesLocation}${WORKING_DAY}/" -type l -name "${findstrg}")
+			echo "DEBUG-> find files command -> find "${referenceFilesLocation}/$WORKING_DAY/" -type f -name "${findstrg}""| tee -a $MYLOG
+			echo "DEBUG-> find symbolic links command=find "${referenceFilesLocation}/$WORKING_DAY/" -type l -name "${findstrg}""| tee -a $MYLOG
+		fi
+		#Convert the string into an array 
+		FILE_TO_BE_PROCESSED_ARRAY=($FILE_TO_BE_PROCESSED_file $FILE_TO_BE_PROCESSED_link)
+						
+		if [[ ${#FILE_TO_BE_PROCESSED_ARRAY[@]} -gt 0 ]]
+		then 
+			break
+		fi
+			
+		let countRetries+=1
+	done
+	echo "INFO-> ----------------------------------------------------------------------------------------------------------------------------------------------------------------" | tee -a $MYLOG
+	echo "INFO-> Started copying ( ${#FILE_TO_BE_PROCESSED_ARRAY[@]} ) files. Current ('${TZ}') time $(date '+Date:%d-%m-20%y, Time:%H:%M:%S')"| tee -a $MYLOG
+   
+   if [[ ${#FILE_TO_BE_PROCESSED_ARRAY[@]} -gt 0 ]]
+	then
+        #******************************************************
+		for existingFilesPathAndName in "${FILE_TO_BE_PROCESSED_ARRAY[@]}"
+		do		
+			
+			if [[ "${pattern}" != "MSS" ]]
+			existingFileNameOnly="$(basename $existingFilesPathAndName)"
+			existingFileDate=$(echo "${existingFileNameOnly}" | sed -e 's/^.*A\([0-9]\{12\}\).*./\1/' | cut -c2-9)
+			newFileName=$(echo ${existingFileNameOnly} | sed -e s/${existingFileDate}/${currentFileDate}/g)
+			
+			echo "DEBUG-> Command to change the file name -> echo ${existingFileNameOnly} | sed -e s/${existingFileDate}/${currentFileDate}/g"| tee -a $MYLOG
+			fi
+			
+			if [[ "$pattern" == "G" ]]
+			then 
+				echo "DEBUG-> Copying file ${existingFilesPathAndName} to ${outputPath}/${newFileName}"  | tee -a $MYLOG
+				cp ${existingFilesPathAndName} ${outputPath}/${newFileName}
+			
+				if [[ -d "$CEP_OUTPUT_DIR" ]]
+				then
+					echo "${existingFilesPathAndName} to ${CEP_OUTPUT_DIR}/${newFileName}" | tee -a $MYLOG
+					cp ${existingFilesPathAndName} ${CEP_OUTPUT_DIR}/${newFileName}
+				fi
+
+			elif [[ "$pattern" == "S" ]]
+			then
+				echo "DEBUG-> Updating the header in the file for MZ: ${existingFilesPathAndName} and moving the file to: ${outputPath}/"  | tee -a $MYLOG
+				tmpOutputFileName=${tmpDir}${nodeName}_${newFileName}
+				echo "DEBUG-> Copying file ${existingFilesPathAndName} to ${tmpOutputFileName}"  | tee -a $MYLOG
+
+				cp  ${existingFilesPathAndName} ${tmpOutputFileName} 
+			
+				#If the CEP option is chosen the we need two copies for the file 1.) MZ 2.) CEP
+				if [[ -d "$CEP_OUTPUT_DIR" ]]
+				then
+					echo "DEBUG-> Updating the header in the file for CEP: ${existingFilesPathAndName} and moving the file to:  ${CEP_OUTPUT_DIR}" | tee -a $MYLOG
+					/usr/bin/perl /ftpmount/files/FET/bin/sgeh/UpdateHeaderDate_Per_File_V3.pl -i ${tmpOutputFileName} -o ${outputPath}/ -l ${HEADER_UPDATE_LOGGING_ENABLED} -c ${CEP_OUTPUT_DIR} 
+				else
+					echo "DEBUG-> Updating the header in the file for MZ: ${existingFilesPathAndName} and moving the file to:  ${outputPath}/"  >> $MYLOG
+					/usr/bin/perl /ftpmount/files/FET/bin/sgeh/UpdateHeaderDate_Per_File_V3.pl -i ${tmpOutputFileName} -o ${outputPath}/ -l ${HEADER_UPDATE_LOGGING_ENABLED} 
+				fi
+			elif [[ "$pattern" == "CTR" ]]
+			then
+				newFileName=$(echo ${newFileName}| sed -e s/ILL/CRK/g | sed -e s/VAL/SGO/g| sed -e s/CTL/DUB/g| sed -e s/MAL01/GAL01/g| sed -e s/MAL03/LIM03/g| sed -e s/NHL/WFD/g| sed -e s/WIL/ATH/g)
+				if [[ ! -z "$updateHeader" ]]
+				then
+					tmpIntermediateLocation="${updateHeader}"
+					mkdir -p ${tmpIntermediateLocation}
+					echo "Copying file ${existingFilesPathAndName} to ${tmpIntermediateLocation}/${newFileName}" | tee -a $MYLOG
+				
+					cp ${existingFilesPathAndName} ${tmpIntermediateLocation}/${newFileName}
+					echo "DEBUG-> Updating the header for the file ${tmpIntermediateLocation}/${newFileName} and outputting to the final location ${outputPath}" | tee -a $MYLOG
+					#echo "./UpdateHeaderDate_Celltrace.pl -i "${tmpIntermediateLocation}/${newFileName}" -o "${outputPath}"/ -l OFF"  >> $MYLOG
+					/usr/bin/perl /ftpmount/files/ATandT/bin/UpdateHeaderDate_Celltrace.pl -i "${tmpIntermediateLocation}/${newFileName}" -o "${outputPath}"/ -l OFF
+				else
+					echo "Copying file ${existingFilesPathAndName} to ${outputPath}/${newFileName}" | tee -a $MYLOG
+					cp ${existingFilesPathAndName} ${outputPath}/${newFileName}
+				fi
+			elif [[ "$pattern" == "CTUM" ]]
+			then
+				echo "Copying file ${existingFilesPathAndName} to ${outputPath}/${newFileName}" | tee -a $MYLOG
+				cp ${existingFilesPathAndName} ${outputPath}/${newFileName}
+			elif [[ "${pattern}" == "MSS" ]]
+			then
+				CURRENT_YEAR=$(date '+%y')
+				CURRENT_MONTH=$(date '+%m')
+				CURRENT_DAY=$(date '+%d')
+			
+				existingFileNameOnly="$(basename $existingFilesPathAndName)"
+				existingFileDate=$(echo "${existingFileNameOnly}" | sed -e 's/^.*\([0-9]\{12\}\).*./\1/' | cut -c1-6)
+				newFileNameWithCurrentDate=$(echo ${existingFileNameOnly} | sed  -e s/${existingFileDate}/${currentFileDate}/g | sed "s/+08/+00/g" )
+				
+				#XMLFILE=$(echo $existingFileNameOnly | sed -e s/.xml.gz/.xml/g)
+				unzipedXmlFilename=$(echo $newFileNameWithCurrentDate | sed  -e s/.xml.gz/.xml/g)
+				unzipedXmlTmpFilename=${unzipedXmlFilename}"_tmp"
+				
+				OLD_YEAR=$(echo $existingFileDate| cut -c1-2)
+				OLD_MONTH=$(echo $existingFileDate| cut -c3-4)
+				OLD_DAY=$(echo $existingFileDate| cut -c5-6)
+				
+                echo "DEBUG-> Copying file ${existingFilesPathAndName} to ${tmpDir}/${newFileNameWithCurrentDate}" | tee -a $MYLOG
+				cp ${existingFilesPathAndName} ${tmpDir}/${newFileNameWithCurrentDate}
+				
+				echo "DEBUG-> Unzipping file to ${tmpDir}/${newFileNameWithCurrentDate} to be file name ${tmpDir}/${unzipedXmlFilename}" | tee -a $MYLOG
+				gunzip ${tmpDir}/${newFileNameWithCurrentDate} 
+				
+				echo "DEBUG-> Updating dates in file ${tmpDir}/${unzipedXmlFilename} and writing them contents to a temporary file ${tmpDir}/${unzipedXmlTmpFilename}" | tee -a $MYLOG
+				#Debuging 
+				echo "DEBUG-> cat & sed command-> cat ${tmpDir}/${unzipedXmlFilename} | sed 's/20${OLD_YEAR}-${OLD_MONTH}-${OLD_DAY}T/20${CURRENT_YEAR}-${CURRENT_MONTH}-${CURRENT_DAY}T/g'  | sed  's/${existingFileDate}/${currentFileDate}/g' | sed 's/+08/+00/g' > ${tmpDir}/${unzipedXmlTmpFilename}" | tee -a $MYLOG
+				cat ${tmpDir}/${unzipedXmlFilename} | sed "s/20${OLD_YEAR}-${OLD_MONTH}-${OLD_DAY}T/20${CURRENT_YEAR}-${CURRENT_MONTH}-${CURRENT_DAY}T/g"  | sed  "s/${existingFileDate}/${currentFileDate}/g" | sed "s/+08/+00/g" > ${tmpDir}/${unzipedXmlTmpFilename} 
+				
+				echo "DEBUG-> Renaming the tmp file ${tmpDir}/${unzipedXmlTmpFilename} to the actual file ${tmpDir}/${unzipedXmlFilename} " | tee -a $MYLOG
+				mv ${tmpDir}/${unzipedXmlTmpFilename} ${tmpDir}/${unzipedXmlFilename}
+				
+				echo "DEBUG-> Zipping the file ${tmpDir}/${unzipedXmlFilename}" | tee -a $MYLOG
+				gzip ${tmpDir}/${unzipedXmlFilename}
+				
+				echo "DEBUG-> Moving the file to the final location to be consumed by mediation ${tmpDir}/${newFileNameWithCurrentDate} to ${outputPath}/${newFileNameWithCurrentDate}" | tee -a $MYLOG
+				mv ${tmpDir}/${newFileNameWithCurrentDate} ${outputPath}/${newFileNameWithCurrentDate}
+				echo "DEBUG-> ********************************************************************************************************************************************************" | tee -a $MYLOG
+			fi		
+		done
+		echo "INFO-> Finished copying files! Current ('${TZ}') time $(date '+Date:%d-%m-20%y, Time:%H:%M:%S')"
+		echo "INFO-> ----------------------------------------------------------------------------------------------------------------------------------------------------------------" | tee -a $MYLOG
+	else
+		echo "$(date '+20%y%m%d %H%M%S') Sorry....No files found for string ${findstrg} in ${referenceFilesLocation}/${WORKING_DAY}/ ...Plz check." | tee -a $MYLOG
+    fi
+done
+}
+
+
+
+
+
+################# Start of the script execution ##################
+while getopts "i:o:t:h:l:n:d:f:r:k:z:c:p:u:s:" arg
+do
+    case $arg in
+        i) referenceFilesLocation="$OPTARG"
+            ;;
+        o) outputPath="$OPTARG"
+            ;;
+        t) TZ="$OPTARG"
+            ;;
+        h) fileTimeZone="$OPTARG"
+            ;;
+        l) logFileOutputDir="$OPTARG"
+           LOGGING_ENABLED="YES"
+			;;
+        n) nodeName="$OPTARG"
+            ;;
+		d) WORKING_DAY_NO="$OPTARG"
+			;;
+		f) FIXED_DATE="$OPTARG"
+			;;
+		r) RPL="$OPTARG"
+           ;;
+		k) OFFSET_INPUT="$OPTARG"
+		   ;;
+		c) CEP_OUTPUT_DIR="$OPTARG"
+           ;;
+		p) pattern="$OPTARG"
+           ;;
+		u) updateHeader="$OPTARG"
+			;;
+		s) file_type="$OPTARG"
+			;;
+        \?) usage_msg
+            exit 1
+            ;;
+    esac
+done
+
+echo "INFO-> Timezone set to: '${TZ}' please not that all dates and time are in this timezone" | tee -a $MYLOG
+export TZ
+createLogFile $logFileOutputDir $LOGGING_ENABLED $nodeName
+LOCKFILE=/tmp/.lock_getFiles_common_$nodeName
+check_owner
+check_args
+check_already_running
+
+
+
+if [ "$pattern" == "S" ]
+then
+	make_temp_dir
+fi
+if [ "$pattern" == "MSS" ]
+then
+	make_temp_dir
+fi
+
+
+liveLoadData
+
+

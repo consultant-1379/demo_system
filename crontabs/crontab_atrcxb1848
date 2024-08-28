@@ -1,0 +1,85 @@
+#Clean up old stale files
+* * * * * /ftpmount/files/FET/bin/deleteFilesOlderThan1Hour.sh /eniq/data/pmdata/eventdata/00/CTRS/ctum/5min/ rm > /dev/null 2>&1
+* * * * * /ftpmount/files/FET/bin/deleteFilesOlderThan1Hour.sh /eniq/data/pmdata/eventdata/00/CTRS/lte_cfa/5min/dir1/ rm > /dev/null 2>&1
+
+#Clean up old logs
+5 0 * * * /usr/bin/bash /eniq/home/dcuser/datagen_admin/demo_log_clean.bsh > /dev/null 2>&1
+
+#CTUM files
+* * * * * /ftpmount/files/FET/bin/getFiles_common.bsh -n ctum -i /ftpmount/files/ATandT/data/CTUM/ -l /eniq/backup/ATandT/logs/ -o /eniq/data/pmdata/eventdata/00/CTRS/ctum/5min/ -r 300 -p CTUM >> /dev/null 2>&1
+
+#Cell Trace files
+* * * * * /ftpmount/files/FET/bin/getFiles_common.bsh -n CRK00100 -i /ftpmount/files/ATandT/data/CTR/ILL00100/ -l /eniq/backup/ATandT/logs/ -o /eniq/data/pmdata/eventdata/00/CTRS/lte_cfa/5min/dir1/ -u /ftpmount/files/ATandT/data/CTR/tmp/ -r 300 -p CTR >> /dev/null 2>&1
+* * * * * /ftpmount/files/FET/bin/getFiles_common.bsh -n CRK00102 -i /ftpmount/files/ATandT/data/CTR/ILL00102/ -l /eniq/backup/ATandT/logs/ -o /eniq/data/pmdata/eventdata/00/CTRS/lte_cfa/5min/dir1/ -u /ftpmount/files/ATandT/data/CTR/tmp/ -r 300 -p CTR >> /dev/null 2>&1
+* * * * * /ftpmount/files/FET/bin/getFiles_common.bsh -n CRK00103 -i /ftpmount/files/ATandT/data/CTR/ILL00103/ -l /eniq/backup/ATandT/logs/ -o /eniq/data/pmdata/eventdata/00/CTRS/lte_cfa/5min/dir1/ -u /ftpmount/files/ATandT/data/CTR/tmp/ -r 300 -p CTR >> /dev/null 2>&1
+* * * * * /ftpmount/files/FET/bin/getFiles_common.bsh -n CRK00106 -i /ftpmount/files/ATandT/data/CTR/ILL00106/ -l /eniq/backup/ATandT/logs/ -o /eniq/data/pmdata/eventdata/00/CTRS/lte_cfa/5min/dir1/ -u /ftpmount/files/ATandT/data/CTR/tmp/ -r 300 -p CTR >> /dev/null 2>&1
+* * * * * /ftpmount/files/FET/bin/getFiles_common.bsh -n CRK00107 -i /ftpmount/files/ATandT/data/CTR/ILL00107/ -l /eniq/backup/ATandT/logs/ -o /eniq/data/pmdata/eventdata/00/CTRS/lte_cfa/5min/dir1/ -u /ftpmount/files/ATandT/data/CTR/tmp/ -r 300 -p CTR >> /dev/null 2>&1
+* * * * * /ftpmount/files/FET/bin/getFiles_common.bsh -n CRK00108 -i /ftpmount/files/ATandT/data/CTR/ILL00108/ -l /eniq/backup/ATandT/logs/ -o /eniq/data/pmdata/eventdata/00/CTRS/lte_cfa/5min/dir1/ -u /ftpmount/files/ATandT/data/CTR/tmp/ -r 300 -p CTR >> /dev/null 2>&1
+* * * * * /ftpmount/files/FET/bin/getFiles_common.bsh -n CRK00109 -i /ftpmount/files/ATandT/data/CTR/ILL00109/ -l /eniq/backup/ATandT/logs/ -o /eniq/data/pmdata/eventdata/00/CTRS/lte_cfa/5min/dir1/ -u /ftpmount/files/ATandT/data/CTR/tmp/ -r 300 -p CTR >> /dev/null 2>&1
+* * * * * /ftpmount/files/FET/bin/getFiles_common.bsh -n CRK00110 -i /ftpmount/files/ATandT/data/CTR/ILL00110/ -l /eniq/backup/ATandT/logs/ -o /eniq/data/pmdata/eventdata/00/CTRS/lte_cfa/5min/dir1/ -u /ftpmount/files/ATandT/data/CTR/tmp/ -r 300 -p CTR >> /dev/null 2>&1
+* * * * * /ftpmount/files/FET/bin/getFiles_common.bsh -n CRK00113 -i /ftpmount/files/ATandT/data/CTR/ILL00113/ -l /eniq/backup/ATandT/logs/ -o /eniq/data/pmdata/eventdata/00/CTRS/lte_cfa/5min/dir1/ -u /ftpmount/files/ATandT/data/CTR/tmp/ -r 300 -p CTR >> /dev/null 2>&1
+* * * * * /ftpmount/files/FET/bin/getFiles_common.bsh -n CRK00114 -i /ftpmount/files/ATandT/data/CTR/ILL00114/ -l /eniq/backup/ATandT/logs/ -o /eniq/data/pmdata/eventdata/00/CTRS/lte_cfa/5min/dir1/ -u /ftpmount/files/ATandT/data/CTR/tmp/ -r 300 -p CTR >> /dev/null 2>&1
+* * * * * /ftpmount/files/FET/bin/getFiles_common.bsh -n CRK00115 -i /ftpmount/files/ATandT/data/CTR/ILL00115/ -l /eniq/backup/ATandT/logs/ -o /eniq/data/pmdata/eventdata/00/CTRS/lte_cfa/5min/dir1/ -u /ftpmount/files/ATandT/data/CTR/tmp/ -r 300 -p CTR >> /dev/null 2>&1
+* * * * * /ftpmount/files/FET/bin/getFiles_common.bsh -n CRK00117 -i /ftpmount/files/ATandT/data/CTR/ILL00117/ -l /eniq/backup/ATandT/logs/ -o /eniq/data/pmdata/eventdata/00/CTRS/lte_cfa/5min/dir1/ -u /ftpmount/files/ATandT/data/CTR/tmp/ -r 300 -p CTR >> /dev/null 2>&1
+* * * * * /ftpmount/files/FET/bin/getFiles_common.bsh -n CRK00119 -i /ftpmount/files/ATandT/data/CTR/ILL00119/ -l /eniq/backup/ATandT/logs/ -o /eniq/data/pmdata/eventdata/00/CTRS/lte_cfa/5min/dir1/ -u /ftpmount/files/ATandT/data/CTR/tmp/ -r 300 -p CTR >> /dev/null 2>&1
+* * * * * /ftpmount/files/FET/bin/getFiles_common.bsh -n CRK00120 -i /ftpmount/files/ATandT/data/CTR/ILL00120/ -l /eniq/backup/ATandT/logs/ -o /eniq/data/pmdata/eventdata/00/CTRS/lte_cfa/5min/dir1/ -u /ftpmount/files/ATandT/data/CTR/tmp/ -r 300 -p CTR >> /dev/null 2>&1
+
+* * * * * /ftpmount/files/FET/bin/getFiles_common.bsh -n SGO00001 -i /ftpmount/files/ATandT/data/CTR/VAL00001/ -l /eniq/backup/ATandT/logs/ -o /eniq/data/pmdata/eventdata/00/CTRS/lte_cfa/5min/dir1/ -u /ftpmount/files/ATandT/data/CTR/tmp/ -r 300 -p CTR >> /dev/null 2>&1
+* * * * * /ftpmount/files/FET/bin/getFiles_common.bsh -n SGO00002 -i /ftpmount/files/ATandT/data/CTR/VAL00002/ -l /eniq/backup/ATandT/logs/ -o /eniq/data/pmdata/eventdata/00/CTRS/lte_cfa/5min/dir1/ -u /ftpmount/files/ATandT/data/CTR/tmp/ -r 300 -p CTR >> /dev/null 2>&1
+* * * * * /ftpmount/files/FET/bin/getFiles_common.bsh -n SGO00003 -i /ftpmount/files/ATandT/data/CTR/VAL00003/ -l /eniq/backup/ATandT/logs/ -o /eniq/data/pmdata/eventdata/00/CTRS/lte_cfa/5min/dir1/ -u /ftpmount/files/ATandT/data/CTR/tmp/ -r 300 -p CTR >> /dev/null 2>&1
+* * * * * /ftpmount/files/FET/bin/getFiles_common.bsh -n SGO00004 -i /ftpmount/files/ATandT/data/CTR/VAL00004/ -l /eniq/backup/ATandT/logs/ -o /eniq/data/pmdata/eventdata/00/CTRS/lte_cfa/5min/dir1/ -u /ftpmount/files/ATandT/data/CTR/tmp/ -r 300 -p CTR >> /dev/null 2>&1
+* * * * * /ftpmount/files/FET/bin/getFiles_common.bsh -n SGO00005 -i /ftpmount/files/ATandT/data/CTR/VAL00005/ -l /eniq/backup/ATandT/logs/ -o /eniq/data/pmdata/eventdata/00/CTRS/lte_cfa/5min/dir1/ -u /ftpmount/files/ATandT/data/CTR/tmp/ -r 300 -p CTR >> /dev/null 2>&1
+* * * * * /ftpmount/files/FET/bin/getFiles_common.bsh -n SGO00006 -i /ftpmount/files/ATandT/data/CTR/VAL00006/ -l /eniq/backup/ATandT/logs/ -o /eniq/data/pmdata/eventdata/00/CTRS/lte_cfa/5min/dir1/ -u /ftpmount/files/ATandT/data/CTR/tmp/ -r 300 -p CTR >> /dev/null 2>&1
+* * * * * /ftpmount/files/FET/bin/getFiles_common.bsh -n SGO00007 -i /ftpmount/files/ATandT/data/CTR/VAL00007/ -l /eniq/backup/ATandT/logs/ -o /eniq/data/pmdata/eventdata/00/CTRS/lte_cfa/5min/dir1/ -u /ftpmount/files/ATandT/data/CTR/tmp/ -r 300 -p CTR >> /dev/null 2>&1
+* * * * * /ftpmount/files/FET/bin/getFiles_common.bsh -n SGO00008 -i /ftpmount/files/ATandT/data/CTR/VAL00008/ -l /eniq/backup/ATandT/logs/ -o /eniq/data/pmdata/eventdata/00/CTRS/lte_cfa/5min/dir1/ -u /ftpmount/files/ATandT/data/CTR/tmp/ -r 300 -p CTR >> /dev/null 2>&1
+* * * * * /ftpmount/files/FET/bin/getFiles_common.bsh -n SGO00009 -i /ftpmount/files/ATandT/data/CTR/VAL00009/ -l /eniq/backup/ATandT/logs/ -o /eniq/data/pmdata/eventdata/00/CTRS/lte_cfa/5min/dir1/ -u /ftpmount/files/ATandT/data/CTR/tmp/ -r 300 -p CTR >> /dev/null 2>&1
+* * * * * /ftpmount/files/FET/bin/getFiles_common.bsh -n SGO00010 -i /ftpmount/files/ATandT/data/CTR/VAL00010/ -l /eniq/backup/ATandT/logs/ -o /eniq/data/pmdata/eventdata/00/CTRS/lte_cfa/5min/dir1/ -u /ftpmount/files/ATandT/data/CTR/tmp/ -r 300 -p CTR >> /dev/null 2>&1
+* * * * * /ftpmount/files/FET/bin/getFiles_common.bsh -n SGO00012 -i /ftpmount/files/ATandT/data/CTR/VAL00012/ -l /eniq/backup/ATandT/logs/ -o /eniq/data/pmdata/eventdata/00/CTRS/lte_cfa/5min/dir1/ -u /ftpmount/files/ATandT/data/CTR/tmp/ -r 300 -p CTR >> /dev/null 2>&1
+* * * * * /ftpmount/files/FET/bin/getFiles_common.bsh -n SGO00013 -i /ftpmount/files/ATandT/data/CTR/VAL00013/ -l /eniq/backup/ATandT/logs/ -o /eniq/data/pmdata/eventdata/00/CTRS/lte_cfa/5min/dir1/ -u /ftpmount/files/ATandT/data/CTR/tmp/ -r 300 -p CTR >> /dev/null 2>&1
+* * * * * /ftpmount/files/FET/bin/getFiles_common.bsh -n SGO00014 -i /ftpmount/files/ATandT/data/CTR/VAL00014/ -l /eniq/backup/ATandT/logs/ -o /eniq/data/pmdata/eventdata/00/CTRS/lte_cfa/5min/dir1/ -u /ftpmount/files/ATandT/data/CTR/tmp/ -r 300 -p CTR >> /dev/null 2>&1
+* * * * * /ftpmount/files/FET/bin/getFiles_common.bsh -n SGO00015 -i /ftpmount/files/ATandT/data/CTR/VAL00015/ -l /eniq/backup/ATandT/logs/ -o /eniq/data/pmdata/eventdata/00/CTRS/lte_cfa/5min/dir1/ -u /ftpmount/files/ATandT/data/CTR/tmp/ -r 300 -p CTR >> /dev/null 2>&1
+* * * * * /ftpmount/files/FET/bin/getFiles_common.bsh -n SGO00017 -i /ftpmount/files/ATandT/data/CTR/VAL00017/ -l /eniq/backup/ATandT/logs/ -o /eniq/data/pmdata/eventdata/00/CTRS/lte_cfa/5min/dir1/ -u /ftpmount/files/ATandT/data/CTR/tmp/ -r 300 -p CTR >> /dev/null 2>&1
+* * * * * /ftpmount/files/FET/bin/getFiles_common.bsh -n SGO00018 -i /ftpmount/files/ATandT/data/CTR/VAL00018/ -l /eniq/backup/ATandT/logs/ -o /eniq/data/pmdata/eventdata/00/CTRS/lte_cfa/5min/dir1/ -u /ftpmount/files/ATandT/data/CTR/tmp/ -r 300 -p CTR >> /dev/null 2>&1
+* * * * * /ftpmount/files/FET/bin/getFiles_common.bsh -n SGO00019 -i /ftpmount/files/ATandT/data/CTR/VAL00019/ -l /eniq/backup/ATandT/logs/ -o /eniq/data/pmdata/eventdata/00/CTRS/lte_cfa/5min/dir1/ -u /ftpmount/files/ATandT/data/CTR/tmp/ -r 300 -p CTR >> /dev/null 2>&1
+* * * * * /ftpmount/files/FET/bin/getFiles_common.bsh -n SGO00021 -i /ftpmount/files/ATandT/data/CTR/VAL00021/ -l /eniq/backup/ATandT/logs/ -o /eniq/data/pmdata/eventdata/00/CTRS/lte_cfa/5min/dir1/ -u /ftpmount/files/ATandT/data/CTR/tmp/ -r 300 -p CTR >> /dev/null 2>&1
+* * * * * /ftpmount/files/FET/bin/getFiles_common.bsh -n SGO00022 -i /ftpmount/files/ATandT/data/CTR/VAL00022/ -l /eniq/backup/ATandT/logs/ -o /eniq/data/pmdata/eventdata/00/CTRS/lte_cfa/5min/dir1/ -u /ftpmount/files/ATandT/data/CTR/tmp/ -r 300 -p CTR >> /dev/null 2>&1
+* * * * * /ftpmount/files/FET/bin/getFiles_common.bsh -n SGO00024 -i /ftpmount/files/ATandT/data/CTR/VAL00024/ -l /eniq/backup/ATandT/logs/ -o /eniq/data/pmdata/eventdata/00/CTRS/lte_cfa/5min/dir1/ -u /ftpmount/files/ATandT/data/CTR/tmp/ -r 300 -p CTR >> /dev/null 2>&1
+* * * * * /ftpmount/files/FET/bin/getFiles_common.bsh -n SGO00025 -i /ftpmount/files/ATandT/data/CTR/VAL00025/ -l /eniq/backup/ATandT/logs/ -o /eniq/data/pmdata/eventdata/00/CTRS/lte_cfa/5min/dir1/ -u /ftpmount/files/ATandT/data/CTR/tmp/ -r 300 -p CTR >> /dev/null 2>&1
+* * * * * /ftpmount/files/FET/bin/getFiles_common.bsh -n SGO00026 -i /ftpmount/files/ATandT/data/CTR/VAL00026/ -l /eniq/backup/ATandT/logs/ -o /eniq/data/pmdata/eventdata/00/CTRS/lte_cfa/5min/dir1/ -u /ftpmount/files/ATandT/data/CTR/tmp/ -r 300 -p CTR >> /dev/null 2>&1
+* * * * * /ftpmount/files/FET/bin/getFiles_common.bsh -n SGO00028 -i /ftpmount/files/ATandT/data/CTR/VAL00028/ -l /eniq/backup/ATandT/logs/ -o /eniq/data/pmdata/eventdata/00/CTRS/lte_cfa/5min/dir1/ -u /ftpmount/files/ATandT/data/CTR/tmp/ -r 300 -p CTR >> /dev/null 2>&1
+* * * * * /ftpmount/files/FET/bin/getFiles_common.bsh -n SGO00029 -i /ftpmount/files/ATandT/data/CTR/VAL00029/ -l /eniq/backup/ATandT/logs/ -o /eniq/data/pmdata/eventdata/00/CTRS/lte_cfa/5min/dir1/ -u /ftpmount/files/ATandT/data/CTR/tmp/ -r 300 -p CTR >> /dev/null 2>&1
+* * * * * /ftpmount/files/FET/bin/getFiles_common.bsh -n SGO00030 -i /ftpmount/files/ATandT/data/CTR/VAL00030/ -l /eniq/backup/ATandT/logs/ -o /eniq/data/pmdata/eventdata/00/CTRS/lte_cfa/5min/dir1/ -u /ftpmount/files/ATandT/data/CTR/tmp/ -r 300 -p CTR >> /dev/null 2>&1
+* * * * * /ftpmount/files/FET/bin/getFiles_common.bsh -n SGO00031 -i /ftpmount/files/ATandT/data/CTR/VAL00031/ -l /eniq/backup/ATandT/logs/ -o /eniq/data/pmdata/eventdata/00/CTRS/lte_cfa/5min/dir1/ -u /ftpmount/files/ATandT/data/CTR/tmp/ -r 300 -p CTR >> /dev/null 2>&1
+* * * * * /ftpmount/files/FET/bin/getFiles_common.bsh -n SGO00033 -i /ftpmount/files/ATandT/data/CTR/VAL00033/ -l /eniq/backup/ATandT/logs/ -o /eniq/data/pmdata/eventdata/00/CTRS/lte_cfa/5min/dir1/ -u /ftpmount/files/ATandT/data/CTR/tmp/ -r 300 -p CTR >> /dev/null 2>&1
+* * * * * /ftpmount/files/FET/bin/getFiles_common.bsh -n SGO00034 -i /ftpmount/files/ATandT/data/CTR/VAL00034/ -l /eniq/backup/ATandT/logs/ -o /eniq/data/pmdata/eventdata/00/CTRS/lte_cfa/5min/dir1/ -u /ftpmount/files/ATandT/data/CTR/tmp/ -r 300 -p CTR >> /dev/null 2>&1
+
+
+#MSS - China Mobile Data
+* * * * *  /ftpmount/files/FET/bin/getFiles_common.bsh -n GZS25 -i /ftpmount/files/ChinaMobile/data/MSS/GZS25.EMM_32/ -l /eniq/backup/ChinaMobile/log/ -o /eniq/backup/mss/GZS25 -r 60 -p MSS >> /dev/null 2>&1
+#Note the below command follows symbolic links as the files are now in /eniq/backup for more storage i.e. bigger disk
+15 * * * * /usr/bin/find -L /eniq/data/pushData/ -type f -name "*.gz*error" | xargs /usr/bin/rm -f
+
+
+
+#WRAN and CORE FET Data
+* * * * *  /ftpmount/files/FET/bin/getFiles_common.bsh -n SGSN56S -i /ftpmount/files/FET/data/utc/SGEH/TY56S/  -l /eniq/backup/FET/logs/ -o /eniq/data/eventdata/events_oss_1/sgeh/dir1/ -c /eniq/backup/CEP/events_oss_1/sgeh_cep/ManagedElement=SGSN56S -t Etc/UTC -h +0800 -p S >> /dev/null 2>&1
+* * * * *  /ftpmount/files/FET/bin/getFiles_common.bsh -n WK10R -i /ftpmount/files/FET/data/utc/GPEH/WK10R/  -l /eniq/backup/FET/logs/ -o /eniq/backup/CEP/events_oss_1/GPEHEvents_CEP/SubNetwork=WK10R -t Etc/UTC -p G >> /dev/null 2>&1
+* * * * *  /ftpmount/files/FET/bin/pcp/captool_staple_getFiles.bsh -i /ftpmount/files/FET/data/utc/PCP-OUTPUT/ -o /eniq/backup/CEP/pcp/output
+
+#LTE SGSN Verizon Data
+* * * * *  /ftpmount/files/FET/bin/getFiles_common.bsh -n MME1 -i /ftpmount/files/Verizon/data/utc/SGEH-MME/MME1/  -l /eniq/backup/Verizon/logs/ -o /eniq/data/eventdata/events_oss_1/sgeh/dir1/ -t Etc/UTC -h -0600 -p S >> /dev/null 2>&1
+
+
+#LTE CFA and HFA AT&T Data
+1,3,5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39,41,43,45,47,49,51,53,55,57,59 * * * * /usr/bin/bash /ftpmount/files/ATandT/bin/run.bsh >>  /dev/null 2>&1
+#* * * * * find /eniq/backup/CEP/pcp/output/ -name "*.log-1.gz" -mmin +60 -exec rm -f {} \;
+#* * * * * find /eniq/data/pushData/00/mss/GZS25 -name "GZS25*" -mmin +240  | xargs rm
+* * * * * /ftpmount/files/ChinaMobile/bin/clean_pcp_mss_output.bsh
+
+00 1 * * 2 /usr/bin/bash /eniq/backup/3G_Session_Browser/CreateSessionBrowserAsciiDataFiles.bsh
+
+#DVTP
+* * * * *  bash /eniq/home/dcuser/dvtp_Datagen_stream/Manage_stream_Datagen.bsh -s 3 -l /eniq/home/dcuser/dvtp_Datagen_stream/ >>  /dev/null 2>&1
+
+0,30 * * * * bash /eniq/local_logs/moniter_demo_sys/demo_system_status.bsh
+

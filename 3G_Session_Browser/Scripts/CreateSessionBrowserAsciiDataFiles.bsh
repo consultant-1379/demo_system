@@ -1,0 +1,264 @@
+#!/bin/bash
+
+AWK=/usr/bin/awk
+BASENAME=/usr/bin/basename
+CAT=/usr/bin/cat
+CHMOD=/usr/bin/chmod
+CHOWN=/usr/bin/chown
+CP=/usr/bin/cp
+DATE=/usr/bin/date
+DIRNAME=/usr/bin/dirname
+ECHO=/usr/bin/echo
+EGREP=/usr/bin/egrep
+EXPR=/usr/bin/expr
+FIND=/usr/bin/find
+GETENT=/usr/bin/getent
+GREP=/usr/bin/grep
+GTAR=/usr/sfw/bin/gtar
+GZCAT=/usr/bin/gzcat
+GZIP=/usr/bin/gzip
+HEAD=/usr/bin/head
+MYHOSTNAME=/usr/bin/hostname
+ID=/usr/bin/id
+INIT=/usr/sbin/init
+LN=/usr/bin/ln
+LS=/usr/bin/ls
+MKDIR=/usr/bin/mkdir
+MOUNT=/usr/sbin/mount
+MV=/usr/bin/mv
+NAWK=/usr/bin/nawk
+PGREP=/usr/bin/pgrep
+PWD=/usr/bin/pwd
+REBOOT=/usr/sbin/reboot
+RM=/usr/bin/rm
+SED=/usr/bin/sed
+SLEEP=/usr/bin/sleep
+SORT=/usr/bin/sort
+SU=/usr/bin/su
+SVCADM=/usr/sbin/svcadm
+SVCCFG=/usr/sbin/svccfg
+SVCS=/usr/bin/svcs
+TAIL=/usr/bin/tail
+TAR=/usr/sbin/tar
+TEE=/usr/bin/tee
+TR=/usr/bin/tr
+TOUCH=/usr/bin/touch
+WC=/usr/bin/wc
+
+### Function: usage_msg ###
+#
+#   Print out the usage message
+#
+# Arguments:
+#       none
+# Return Values:
+#       none
+usage_msg()
+{
+$CLEAR
+$ECHO "
+Usage: `$BASENAME $0` [-i inputFilesLocataion] [-s scriptsLocation]
+
+options:
+    
+    # Optional Fields
+        -i <inputFiles Location, optional> , full path to location of the input to be processed
+        -s <scripts Location, optional> , full path to location of the scripts to be used
+		-o <output Location, optional> , full path to location of where you want the files outputted to
+"
+}
+
+clearLogFiles(){
+    #Check the number of log files are in the directory 
+    numberOfLogFiles=$( $FIND ${scriptsLocation} -name "$1*.log" | $WC -l | $TR -d ' ' )
+    if [ "$numberOfLogFiles" -ge 4 ]
+    then
+        $ECHO "Removing all old log files as there are: $numberOfLogFiles files with a file name: $1*.log" 
+        $RM $1*.log
+    fi
+}
+
+################# Start of the script execution ##################
+while getopts "i:s:o:" arg
+do
+    case $arg in
+        i) inputFilesLocation="$OPTARG"
+            ;;
+        s)  scriptsLocation="$OPTARG"
+            ;;
+        o) outputDirectoryLocation="$OPTARG"
+            ;;
+        \?) usage_msg
+            exit 1
+            ;;
+    esac
+done
+
+
+
+if [[ -z $inputFilesLocation ]]
+then
+        inputFilesLocation="/eniq/backup/3G_Session_Browser/3G_Session_input_data/"
+fi
+
+if [[ -z $scriptsLocation ]]
+then
+        scriptsLocation="/eniq/backup/3G_Session_Browser/"
+fi
+
+if [[ -z $outputDirectoryLocation ]]
+then
+        outputDirectoryLocation="${scriptsLocation}"
+fi
+
+
+
+
+#Ensure that the script is exected in the current directory where it resides. Therefore any relative path will now apply
+dirname=$(dirname $0)
+cd $dirname
+
+rm *_tmp 2> /dev/null #Only want to create one copy so if the file exist remove it
+rm -rf ${outputDirectoryLocation}/loadFiles
+mkdir ${outputDirectoryLocation}/loadFiles
+
+#Path to the file containing all the dates we want to manipulate 
+FILE_PATH_AND_NAME="${inputFilesLocation}/raw/event_e_ran_cfa/EVENT_E_RAN_CFA_ERR_RAW_01"
+
+##Create a log file and a start time as a reference to see how long it takes to load the data
+
+
+#Configure logs
+logFileName="CreateSessionBrowserAsciiDataFiles"
+clearLogFiles ${logFileName}
+dateNow=$(date +%d-%m-%y_%H:%M:%S)
+logFile="${scriptsLocation}/${logFileName}_${dateNow}.log"
+$TOUCH $logFile
+$ECHO ".............. Start: "`date +"%m-%d-%y_%H:%M:%S"` >> $logFile
+
+
+
+
+
+
+declare -a FILE_TO_BE_PROCESSED_ARRAY
+declare -a CURRENT_DATETIME_ID_ARRAY
+declare -a EXISTING_DATETIME_ID_IN_FILES_ARRAY
+
+#Get the unique dates in the file, there may well be more than one!
+DATETIME_ID=`sed -e 's/^.*|\([0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}\) [0-9]\{2\}:[0-9]\{2\}:[0-9]\{2\}.[0-9]\{3\}.*|/\1/p' ${FILE_PATH_AND_NAME} | sort -uT /eniq/backup/`
+DATETIME_ID+=" "`sed -n 's/^.*|\([0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}\).*|/\1/p' ${FILE_PATH_AND_NAME} | sort -uT /eniq/backup/`
+SORTED_DATETIME_ID=$(echo "${DATETIME_ID[@]}" | tr ' ' '\n' | sort -u | tr '\n' ' ')
+
+#Change the string into an array 
+EXISTING_DATETIME_ID_IN_FILES_ARRAY=($SORTED_DATETIME_ID)
+
+
+#Need to revisit later and maybe ensure that the array size are the same for 
+#echo ${#EXISTING_DATETIME_ID_IN_FILES_ARRAY[@]} should equal ${#CURRENT_DATETIME_ID_ARRAY[@]} otherewise there will be a mismatch
+
+#Use perl to generate the dates for today and the next seven days so a global replace can be done within the files
+DATETIMES=`perl generateDates.pl ${#EXISTING_DATETIME_ID_IN_FILES_ARRAY[@]} -1`
+#Convert the string into an array 
+CURRENT_DATETIME_ID_ARRAY=($DATETIMES) 
+
+#Get a list of files that need to be processed
+FILE_TO_BE_PROCESSED=`find ${inputFilesLocation}  | egrep "_15MIN|_DAY|_RAW" | egrep -v "_cols"`
+#Convert the string into an array 
+FILE_TO_BE_PROCESSED_ARRAY=($FILE_TO_BE_PROCESSED)
+
+
+
+buildSingleSedStringToReplaceAllDates()
+{
+    sedString=" sed"
+    
+    ##Loop is for the format "|2013-07-16|2013|4|18" this is where the year,month,day is used for the BO reports so replacing these as well
+    ## remaining dates stored in the file like "2013-07-16" these need to be the current dates
+    
+        #Reverse for loop is required in case the dates are overwritten
+        #The loop can be written many ways this just made it easier to read and include the element at zero
+        for (( x=${#EXISTING_DATETIME_ID_IN_FILES_ARRAY[@]}-1 ; x>-1 ; x--))
+        do
+        
+        # Below is helpful for debugging
+        YEAR=`echo "${CURRENT_DATETIME_ID_ARRAY[$x]}" | awk 'BEGIN { FS = "-" }  { print $1 }'`
+        #The month and day are stored in the DB as an int hence 07 becomes 7 :)
+        MONTH=`echo "${CURRENT_DATETIME_ID_ARRAY[$x]}" | awk 'BEGIN { FS = "-" }  { print $2 }'`
+        DAY=`echo "${CURRENT_DATETIME_ID_ARRAY[$x]}" | awk 'BEGIN { FS = "-" }  { print $3 }'`
+        # Below is helpful for debugging
+        #echo  "From: ${EXISTING_DATETIME_ID_IN_FILES_ARRAY[$x]} To:" "${CURRENT_DATETIME_ID_ARRAY[$x]}\|"$YEAR"\|"$MONTH"\|"$DAY
+        #echo " -e 's/\(${EXISTING_DATETIME_ID_IN_FILES_ARRAY[$x]}|[0-9]\{4\}|[0-9]\{1,2\}|[0-9]\{1,2\}\)/${CURRENT_DATETIME_ID_ARRAY[$x]}|$YEAR|$MONTH|$DAY/g'"
+              sedString+=" -e s/\(${EXISTING_DATETIME_ID_IN_FILES_ARRAY[$x]}|[0-9]\{4\}|[0-9]\{1,2\}|[0-9]\{1,2\}\)/${CURRENT_DATETIME_ID_ARRAY[$x]}|$YEAR|$MONTH|$DAY/g"
+        
+        # Below is helpful for debugging
+        #echo "From: ${EXISTING_DATETIME_ID_IN_FILES_ARRAY[$x]} To: ${CURRENT_DATETIME_ID_ARRAY[$x]}"   
+        sedString+=" -e s/${EXISTING_DATETIME_ID_IN_FILES_ARRAY[$x]}/${CURRENT_DATETIME_ID_ARRAY[$x]}/g"
+        done
+}
+
+#Call the function to build a single sed string to replace all string dates in the file
+buildSingleSedStringToReplaceAllDates
+
+
+
+
+
+
+#Iterate through the list of files
+for files in "${FILE_TO_BE_PROCESSED_ARRAY[@]}"
+do
+    
+    tablename=`basename $files`
+    
+    #echo $sedString
+    cat $files | $sedString > $files"_tmp"
+    sleep 2 #Sleep for a few seconds before creating the load file
+    mv $files"_tmp" $files
+    sleep 2 #Sleep for a few seconds before renaming the load file
+    
+    #This cuts out the need to go through all the days and will only process the dates in a file
+    DATETIME_ID_IN_A_SINGLE_FILE=`sed -e 's/^.*|\([0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}\) [0-9]\{2\}:[0-9]\{2\}:[0-9]\{2\}.[0-9]\{3\}.*|/\1/p' $files  | sort -uT /eniq/backup/` 
+       #Get the unique dates in the file, there may well be more than one!
+       EXISTING_DATETIME_IN_A_SINGLE_FILE_ARRAY=($DATETIME_ID_IN_A_SINGLE_FILE)
+    
+    
+        #A separate file name TableNamexyzCurrentDate is used to figure out the correct partition to load the date into
+        for (( x=0 ; x<${#EXISTING_DATETIME_IN_A_SINGLE_FILE_ARRAY[@]} ; x++))
+            do
+                cat $files | egrep -e "${EXISTING_DATETIME_IN_A_SINGLE_FILE_ARRAY[$x]} [0-9][0-9]:[0-9][0-9]:[0-9][0-9].[0-9][0-9][0-9]"  > "${outputDirectoryLocation}/loadFiles/"$tablename"xyz${EXISTING_DATETIME_IN_A_SINGLE_FILE_ARRAY[$x]}"
+            done
+    sleep 2 #Sleep for a few seconds then copy the columns names to the load dir
+    cp $files"_cols" ${outputDirectoryLocation}/loadFiles/
+
+    
+    
+done
+
+zeroSizeList=$(find ${outputDirectoryLocation}/loadFiles/* -size 0 | egrep "_15MIN|_DAY|_RAW" | egrep -v "_cols|_tmp")
+
+if [[ $(echo ${zeroSizeList} |wc -w)  -gt 0 ]]
+then
+       echo "..............Aborting as ${zeroSizeList} file(s) are empty: "`date +"%d-%m-%y_%H:%M:%S"` >> $logFile
+	   echo echo "..............Aborting as ${zeroSizeList} file(s) are empty: "`date +"%d-%m-%y_%H:%M:%S"` | mailx -s 'CreateSessionBrowserAsciiDataFiless Issue' alan.fergus@ericsson.com stephen.dunne@ericsson.com
+	   exit 1
+fi
+
+##Start loading the files
+
+echo ".............. Finished manipulating the file date to current dates: "`date +"%d-%m-%y_%H:%M:%S"` >> $logFile
+
+numberOfFilesToProcess=`ls ${outputDirectoryLocation}/loadFiles/ | egrep -v "_cols" | wc -l | tr -d ' '`
+echo "There are: $numberOfFilesToProcess files to be loaded into the database" >> $logFile
+
+/usr/bin/bash  ${scriptsLocation}/LoadFilesIntoDb.bsh ${outputDirectoryLocation}/loadFiles/ >> $logFile
+
+echo ".............. Finished loading files into DB: "`date +"%d-%m-%y_%H:%M:%S"` >> $logFile
+
+
+echo ".............. Refreshing PhysicalTableCache: "`date +"%d-%m-%y_%H:%M:%S"` >> $logFile
+
+
+echo $(date +"%d-%m-%y_%H:%M:%S") >> $logFile
+engine -e reloadConfig >> $logFile
+

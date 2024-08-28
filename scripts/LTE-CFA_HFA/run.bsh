@@ -1,0 +1,6 @@
+#!/bin/bash 
+
+/usr/bin/bash /eniq/backup/LTE-CFA_HFA/UpdateLTETable.bsh EVENT_E_LTE_HFA_ERR_RAW
+/usr/bin/bash /eniq/backup/LTE-CFA_HFA/UpdateLTETable.bsh EVENT_E_LTE_CFA_ERR_RAW
+/usr/bin/bash /eniq/backup/LTE-CFA_HFA/UpdateLTETable.bsh EVENT_E_LTE_HFA_ARRAY_ERAB_ERR_RAW
+/usr/bin/bash /eniq/backup/LTE-CFA_HFA/UpdateLTETable.bsh EVENT_E_LTE_CFA_ARRAY_ERAB_ERR_RAW

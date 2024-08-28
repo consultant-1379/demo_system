@@ -1,0 +1,355 @@
+#!/bin/bash 
+# ********************************************************************
+# Ericsson Radio Systems AB                                     SCRIPT
+# ********************************************************************
+#
+#
+# (c) Ericsson Radio Systems AB 2012 - All rights reserved.
+#
+# The copyright to the computer program(s) herein is the property
+# of Ericsson Radio Systems AB, Sweden. The programs may be used 
+# and/or copied only with the written permission from Ericsson Radio 
+# Systems AB or in accordance with the terms and conditions stipulated 
+# in the agreement/contract under which the program(s) have been 
+# supplied.
+#
+# ********************************************************************
+# Name    :
+# Date    : 
+# Revision: A
+# Purpose : 
+#
+# Usage   : 
+#
+# ********************************************************************
+#
+#   Command Section
+#
+# ********************************************************************
+#
+AWK=/usr/bin/awk
+BASENAME=/usr/bin/basename
+CAT=/usr/bin/cat
+CHMOD=/usr/bin/chmod
+CHOWN=/usr/bin/chown
+CP=/usr/bin/cp
+DATE=/usr/bin/date
+DIRNAME=/usr/bin/dirname
+ECHO=/usr/bin/echo
+EGREP=/usr/bin/egrep
+EXPR=/usr/bin/expr
+FIND=/usr/bin/find
+GETENT=/usr/bin/getent
+GEGREP=/usr/sfw/bin/gegrep
+GREP=/usr/bin/grep
+GTAR=/usr/sfw/bin/gtar
+GZCAT=/usr/bin/gzcat
+GZIP=/usr/bin/gzip
+HEAD=/usr/bin/head
+MYHOSTNAME=/usr/bin/hostname
+ID=/usr/bin/id
+INIT=/usr/sbin/init
+LN=/usr/bin/ln
+LS=/usr/bin/ls
+MKDIR=/usr/bin/mkdir
+MOUNT=/usr/sbin/mount
+MV=/usr/bin/mv
+NAWK=/usr/bin/nawk
+PGREP=/usr/bin/pgrep
+PWD=/usr/bin/pwd
+REBOOT=/usr/sbin/reboot
+RM=/usr/bin/rm
+SED=/usr/bin/sed
+SLEEP=/usr/bin/sleep
+SORT=/usr/bin/sort
+SU=/usr/bin/su
+SVCADM=/usr/sbin/svcadm
+SVCCFG=/usr/sbin/svccfg
+SVCS=/usr/bin/svcs
+TAIL=/usr/bin/tail
+TAR=/usr/sbin/tar
+TEE=/usr/bin/tee
+TOUCH=/usr/bin/touch
+WC=/usr/bin/wc
+
+# Name of SunOS & ENIQ ini Files
+ENIQ_INI=niq.ini
+
+
+### Function: abort_script ###
+#
+#   abort_script
+#
+# Arguments:
+#       error message
+# Return Values:
+#       none
+abort_script()
+{
+if [ "$1" ]; then
+    _err_msg_=$1
+else
+    _err_msg_="Script aborted.......\n"    
+fi
+$ECHO $($DATE +%d.%m.%y_%H:%M:%S) $_err_msg_   | tee -a $MYLOG
+
+exit 1
+}
+
+### Function: usage_msg ###
+#
+#   Print out the usage message
+#
+# Arguments:
+#       none
+# Return Values:
+#       none
+usage_msg()
+{
+$CLEAR
+$ECHO "
+Usage: `$BASENAME $0` <-a START -c cronFilePath | -a STOP> [-l pathLogfileDirectory]
+
+options:
+    # Mandatory Fields
+        -a  : START/STOP datagen processing 
+        -c  : full path to cron file when starting 
+    
+    # Optional Fields
+        -l <log output directory, optional> Default: Logging disabled if not set
+    
+"
+}
+
+### Function: setup_env ###
+#
+# Setup up path environment etc
+#
+# Arguments:
+#   none
+# Return Values:
+#   DWH_port,DWH_eng and DBA password
+
+setup_env()
+{
+DEFAULT_USER="dcuser"
+LOCKFILE=/tmp/.manage_eniq_demo_datagen_lockfile
+SERVER=$(uname -n)
+}
+
+### Function: check_for_processing ###
+#
+#   Check if the script has already been started the processing
+#   
+#
+# Arguments:
+#       none
+# Return Values:
+#       none
+check_for_processing()
+{
+
+if [ ! -f ${LOCKFILE} ]; then
+    if [ "${action}" == "STOP" ]
+    then
+        _err_msg_="ERROR: Processing has not be started with manage_eniq_demo_datagen."
+         abort_script "$_err_msg_"
+    fi
+else
+    if [ "${action}" == "START" ]
+    then
+        _err_msg_="ERROR: Processing has already been started with manage_eniq_demo_datagen."
+         abort_script "$_err_msg_"
+    fi
+
+fi
+}
+
+
+### Function: check_args ###
+#
+#   Check the script args are correct
+#   
+#
+# Arguments:
+#       none
+# Return Values:
+#       none
+check_args()
+{
+
+    ########## Mandatory fields check ##################################
+
+    if [ -z $action ]
+    then
+        $ECHO $($DATE +%d.%m.%y_%H:%M:%S)" ERROR: No action to perform was provided."| tee -a $MYLOG
+        usage_msg
+        exit 1
+    fi
+    
+    if [[ -z $cronFilePath ]]
+    then
+		if [ "$action" != "STOP" ]
+		then
+			$ECHO $($DATE +%d.%m.%y_%H:%M:%S)" ERROR: You must pass the full path to the cron file to be used." | tee -a $MYLOG
+			usage_msg
+			exit 1
+		fi
+    fi
+    if [[ ! -f ${cronFilePath} ]]
+    then
+		if [ "$action" != "STOP" ]
+		then
+			$ECHO $($DATE +%d.%m.%y_%H:%M:%S)" ERROR: Cron file - ${cronFilePath} does not exist." | tee -a $MYLOG
+			usage_msg
+			exit 1
+		fi
+    fi
+
+
+    if  [ "$action" != "START" ] 
+    then
+        if  [ "$action" != "STOP" ]
+        then
+            $ECHO $($DATE +%d.%m.%y_%H:%M:%S)" ERROR: Only STOP and START can be used for action to perform."| tee -a $MYLOG
+            exit 1
+        else
+            $ECHO ""
+        fi
+    else
+        $ECHO ""
+    fi
+
+
+
+    #####################################################################
+}
+
+### Function: check_id ###
+#
+#   Check that the effective id of the user is correct
+#   If not print error msg and exit.
+#
+# Arguments:
+#       $1 : User ID name
+# Return Values:
+#       none
+check_id()
+{
+_check_id_=`$ID  | $AWK -F\( '{print $2}' | $AWK -F\) '{print $1}'`
+if [ "$_check_id_" != "$1" ]; then
+    _err_msg_="You must be $1 to execute this script."
+    abort_script "$_err_msg_"
+fi
+}
+
+
+### Function: createLogFile ###
+#
+#   Create a log file with passed path
+#   
+#
+# Arguments:
+#       $1 : log file full path
+# Return Values:
+#       none
+
+createLogFile()
+{
+logFileOutputDir=$1
+
+
+ if [[ ! -z  $logFileOutputDir ]]
+  then
+        
+        MYDATE=`date '+20%y%m%d'`
+        MYLOG="${logFileOutputDir}/manage_eniq_demo_datagen_$MYDATE.log"
+
+        if [ ! -f $MYLOG ]
+        then
+                $TOUCH $MYLOG
+                
+        fi       
+        $ECHO " " | $TEE -a ${MYLOG}
+  else
+        MYLOG=/dev/null
+  fi
+ } 
+
+# ********************************************************************
+#
+#   Main body of program
+#
+# ********************************************************************
+#
+
+
+# Pull in the environment
+setup_env
+setup_env_ec=$?
+if [ $setup_env_ec -ne 0 ]; then
+    _err_msg_="Could not set_env"
+    abort_script "$_err_msg_"
+fi
+
+
+# Check that the effective id of the user is dcuser
+check_id $DEFAULT_USER
+
+#
+
+while getopts "a:l:c:" arg; do
+  case $arg in
+    a)  action="$OPTARG"
+       ;;
+    c)  cronFilePath="$OPTARG"
+        ;;
+    l)  logFileOutputDir="$OPTARG"
+       ;;
+
+   \?) usage_msg 
+         _err_msg_="ERROR: Invalid option used or no option used."
+        abort_script "${_err_msg_}"
+        ;;
+       
+  esac
+done
+
+
+createLogFile $logFileOutputDir
+check_args
+
+$ECHO "=========================================================================" | $TEE -a ${MYLOG}
+$ECHO "=========================================================================" | $TEE -a ${MYLOG}
+
+if [ "${action}" == "START" ] 
+then
+    check_for_processing
+    $TOUCH ${LOCKFILE}
+	crontab -l >/eniq/home/dcuser/datagen_admin/crontab_orig_${SERVER}
+    crontab ${cronFilePath}
+	#nohup /eniq_zfs_storage_pools/eniq_sp_1/java/jdk1.7.0_51/bin/java -jar DVTPAutomationDatagen.jar --connector=Basic --stream=Pgw --host=atrcxb1839.athtem.eei.ericsson.se --port=3210 &
+	$ECHO $($DATE +%d.%m.%y_%H:%M:%S)" DEBUG: Processing for ENIQ demo datagen started successfully." | $TEE -a ${MYLOG}
+	
+elif [ "${action}" == "STOP" ]
+then
+    check_for_processing
+    
+	crontab /eniq/home/dcuser/datagen_admin/crontab_orig_${SERVER}
+	
+    kill -9 `ps -ef | grep dcuser |egrep '(/ftpmount/files/FET/bin/getFiles_common.bsh|/ftpmount/files/FET/bin/pcp/captool_staple_getFiles.bsh|copy_mss_files.sh|captool_staple_getFiles.bsh|/eniq/backup/LTE-CFA_HFA/run.bsh|/eniq/backup/3G_Session_Browser/CreateSessionBrowserAsciiDataFiles.bsh|DVTP|Manage_stream_Datagen.bsh)' |grep -v "grep"| nawk -F " " '{print $2}'` 2>/dev/null
+    if [ $(ps -ef | grep dcuser |egrep '(/ftpmount/files/FET/bin/getFiles_common.bsh|/ftpmount/files/FET/bin/pcp/captool_staple_getFiles.bsh|copy_mss_files.sh|captool_staple_getFiles.bsh|/eniq/backup/LTE-CFA_HFA/run.bsh|/eniq/backup/3G_Session_Browser/CreateSessionBrowserAsciiDataFiles.bsh|DVTP|Manage_stream_Datagen.bsh)' |grep -v "grep"|wc -l) -gt 0 ]
+    then
+        _err_msg_="ERROR: Did not stop all processing for demo system datagen."
+        abort_script "${_err_msg_}"
+    fi
+	$ECHO $($DATE +%d.%m.%y_%H:%M:%S)" DEBUG: Processing for ENIQ demo datagen stopped successfully." | $TEE -a ${MYLOG}
+    $RM -f /tmp/.lock_getFiles_common_*
+	$RM -f ${LOCKFILE}
+else
+    usage_msg 
+    _err_msg_="ERROR: Invalid option used or no option used."
+    abort_script "${_err_msg_}"
+fi
+$ECHO "=========================================================================" | $TEE -a ${MYLOG}
+$ECHO "=========================================================================" | $TEE -a ${MYLOG}

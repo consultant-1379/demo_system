@@ -1,0 +1,16 @@
+#MSS - China Mobile Data
+0-59 * * * * cd /ftpmount/files/ChinaMobile/bin; ./copy_mss_files.sh >> /dev/null 2>&1
+15 * * * * cd /ftpmount/files/ChinaMobile/bin; ./stop_error_dir_filling_up.sh  >> /dev/null 2>&1
+
+
+#WRAN and CORE FET Data
+* * * * *  /ftpmount/files/FET/bin/sgeh/getNFSFiles_sgeh_including_cep.sh -n SGSN56S -i /ftpmount/files/FET/data/utc/SGEH/TY56S/  -l /eniq/backup/FET/logs/ -o /eniq/data/eventdata/events_oss_1/sgeh/dir1/ -c /eniq/backup/CEP/events_oss_1/sgeh_cep/ManagedElement=SGSN56S -t Etc/UTC -h +0800 >> /dev/null 2>&1
+* * * * *  /ftpmount/files/FET/bin/gpeh/getFiles_gpeh_including_cep.sh -n WK10R -i /ftpmount/files/FET/data/utc/GPEH/WK10R/  -l /eniq/backup/FET/logs/ -o /eniq/backup/CEP/events_oss_1/GPEHEvents_CEP/SubNetwork=WK10R -t Etc/UTC >> /dev/null 2>&1
+* * * * *  /ftpmount/files/FET/bin/pcp/captool_staple_getFiles.bsh -i /ftpmount/files/FET/data/utc/PCP-OUTPUT/ -o /eniq/backup/CEP/pcp/output
+
+#LTE SGSN Verizon Data
+* * * * *  /ftpmount/files/FET/bin/sgeh/getNFSFiles_sgeh_including_cep.sh -n MME1 -i /ftpmount/files/Verizon/data/utc/SGEH-MME/MME1/  -l /eniq/backup/Verizon/logs/ -o /eniq/data/eventdata/events_oss_1/sgeh/dir1/ -t Etc/UTC -h -0600 >> /dev/null 2>&1
+
+
+#LTE CFA and HFA AT&T Data
+1,3,5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39,41,43,45,47,49,51,53,55,57,59 * * * * /usr/bin/bash /eniq/backup/LTE-CFA_HFA/run.bsh >>  /dev/null 2>&1

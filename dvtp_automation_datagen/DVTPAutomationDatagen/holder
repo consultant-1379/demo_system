@@ -1,0 +1,12 @@
+private String generateSessionInfo(SimpleDateFormat tFormHourMilli,
+                        String objId) {
+                return "1,6,0,"
+                                + tFormHourMilli.format(System.currentTimeMillis())
+                                + ",0,11122330000002,,,,,,,,,,,,apn1.com,,,11.1.0.2,,,,4800017,RS229";
+        }
+        public String generateDataUsage(SimpleDateFormat tFormHourMilli,
+                        String objId) {
+                return "1,7,0,"
+                                + tFormHourMilli.format(System.currentTimeMillis())
+                                + ",19000,11122330000002,,,,,,,,,,,,apn1.com,,,,,,,4800017,RS229,[2;;;;10240;20480],[]";
+        }

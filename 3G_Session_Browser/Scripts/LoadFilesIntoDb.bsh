@@ -1,0 +1,410 @@
+#!/bin/bash 
+. /eniq/sybase_iq/IQ-15_2/IQ-15_2.sh
+
+# ********************************************************************
+# Ericsson Radio Systems AB                                     SCRIPT
+# ********************************************************************
+#
+#
+# (c) Ericsson Radio Systems AB 2013 - All rights reserved.
+#
+# The copyright to the computer program(s) herein is the property
+# of Ericsson Radio Systems AB, Sweden. The programs may be used 
+# and/or copied only with the written permission from Ericsson Radio 
+# Systems AB or in accordance with the terms and conditions stipulated 
+# in the agreement/contract under which the program(s) have been 
+# supplied.
+#
+# ********************************************************************
+
+
+AWK=/usr/bin/awk
+BASENAME=/usr/bin/basename
+CAT=/usr/bin/cat
+CHMOD=/usr/bin/chmod
+CHOWN=/usr/bin/chown
+CLEAR=/usr/bin/clear
+CP=/usr/bin/cp
+DATE=/usr/bin/date
+DIRNAME=/usr/bin/dirname
+ECHO=/usr/bin/echo
+EGREP=/usr/bin/egrep
+EXPR=/usr/bin/expr
+FIND=/usr/bin/find
+GETENT=/usr/bin/getent
+GREP=/usr/bin/grep
+GTAR=/usr/sfw/bin/gtar
+GZCAT=/usr/bin/gzcat
+GZIP=/usr/bin/gzip
+HEAD=/usr/bin/head
+MYHOSTNAME=/usr/bin/hostname
+ID=/usr/bin/id
+INIT=/usr/sbin/init
+LN=/usr/bin/ln
+LS=/usr/bin/ls
+MKDIR=/usr/bin/mkdir
+MOUNT=/usr/sbin/mount
+MV=/usr/bin/mv
+NAWK=/usr/bin/nawk
+PGREP=/usr/bin/pgrep
+PWD=/usr/bin/pwd
+REBOOT=/usr/sbin/reboot
+RM=/usr/bin/rm
+SED=/usr/bin/sed
+SLEEP=/usr/bin/sleep
+SORT=/usr/bin/sort
+SU=/usr/bin/su
+SVCADM=/usr/sbin/svcadm
+SVCCFG=/usr/sbin/svccfg
+SVCS=/usr/bin/svcs
+TAIL=/usr/bin/tail
+TAR=/usr/sbin/tar
+TEE=/usr/bin/tee
+TOUCH=/usr/bin/touch
+TR=/usr/bin/tr
+WC=/usr/bin/wc
+
+# ********************************************************************
+#
+# 	Command Section
+#
+# ********************************************************************
+
+
+
+sp="/-\|"
+sc=0
+spin() {
+   $CLEAR
+   printf "\b${sp:sc++:1}"
+   ((sc==${#sp})) && sc=0
+}
+endspin() {
+   printf "\r%s\n" "$@"
+}
+
+clearLogFiles(){
+	#Check the number of log files are in the directory 
+	numberOfLogFiles=$( $FIND . -name "$1*.log" | $WC -l | $TR -d ' ' )
+	if [ "$numberOfLogFiles" -ge 4 ]
+	then
+		$ECHO "Removing all old log files as there are: $numberOfLogFiles files with a file name: $1*.log" | $TEE -a $logFile
+		$RM $1*.log
+	fi
+}
+
+### Function: loadTable ###
+#
+# 
+#
+# Arguments:
+#	file name & partition name
+# Return Values:
+#	
+loadTable()
+{
+	
+	#File name e.g. EVENT_E_SGEH_ERR_RAW_02xyz2014-01-30
+	fileNameAndDate=$1
+	#e.g. EVENT_E_SGEH_ERR_RAW_02
+	filePartitionNameWithPartitionNumber=$( $ECHO ${fileNameAndDate} | $NAWK -F"xyz" '{print $1 }' )
+	partitionToLoadDataInto=$2
+
+#Only if the there is no free partition for raw or there is no valid aggregated table within the date within the file..... load the file into the same partition it was extracted from which is the file name.
+if [ -z "$partitionToLoadDataInto" ]
+then
+    partitionToLoadDataInto=$filePartitionNameWithPartitionNumber
+fi
+
+sqlFile=`mktemp -p $Tmp_Dir -t ExtTabSql_${partitionToLoadDataInto}.XXXXXXXXXX`
+
+tableColumnsFile=$($CAT /$Files_To_Be_Loaded_Dir/${filePartitionNameWithPartitionNumber}_cols) 
+
+$CAT > $sqlFile  <<STOP_SQL_CODE_POINT
+set temporary option ESCAPE_CHARACTER='ON';
+set temporary option ON_ERROR='EXIT';
+LOAD TABLE dc.${partitionToLoadDataInto} ${tableColumnsFile}
+from '${Files_To_Be_Loaded_Dir}/${fileNameAndDate}'
+ESCAPES OFF 
+QUOTES OFF 
+DELIMITED BY '|'
+ROW DELIMITED BY '\n' 
+WITH CHECKPOINT OFF ;
+STOP_SQL_CODE_POINT
+
+
+exec_count=$(/usr/ucb/ps auxww | grep dbisql |grep -v "grep"|grep ExtTabSql_${partitionToLoadDataInto}|wc -l)
+
+while [ $exec_count -ne 0 ]
+do
+	$ECHO `"$DATE" "+%d-%m-%Y %T"` "Paused Loading: As ${partitionToLoadDataInto} is already being loaded to." | $TEE -a $logFile
+	sleep 60
+	exec_count=$(/usr/ucb/ps auxww | grep dbisql |grep -v "grep"|grep ExtTabSql_${partitionToLoadDataInto}|wc -l)
+done
+
+#dbisqlMsg=`dbisql  -c "eng=dwhdb;links=tcpip{host=dwhdb;port=2640};uid=dba;pwd=sql" -nogui $sqlFile`
+dbisqlMsg=`dbisql -c "eng=dwh_reader_1;links=tcpip{host=dwh_reader_1;port=2642};uid=dba;pwd=sql" -nogui  $sqlFile`
+
+
+# The table name is pushed into finished log only if not in error
+if [ $? -eq 0 ]
+then
+	$ECHO "*****************************************************************************************************************" | $TEE -a $logFile
+    $ECHO `"$DATE" "+%d-%m-%Y %T"` "Successfully Loaded: " ${Files_To_Be_Loaded_Dir}/${fileNameAndDate} "file into partition: " ${partitionToLoadDataInto} | $TEE -a $logFile
+	$ECHO ${dbisqlMsg} | $TEE -a $logFile
+    $RM  ${Files_To_Be_Loaded_Dir}/${fileNameAndDate} 
+else
+    $ECHO "*****************************************************************************************************************" | $TEE -a $logFile
+    $ECHO `"$DATE" "+%d-%m-%Y %T"` "Error Loading: " ${Files_To_Be_Loaded_Dir}/${fileNameAndDate} "file into partition:" ${partitionToLoadDataInto}... | $TEE -a $logFile
+	$ECHO ${dbisqlMsg} | $TEE -a $logFile
+fi
+
+$RM -f $sqlFile $Tmp_Dir/${fileNameAndDate}.sql $Tmp_Dir/${fileNameAndDate}.txt
+
+}
+
+### Function: getPartitionName ###
+#
+# 
+#
+# Arguments:
+#	file name
+# Return Values:
+#	partition name
+getPartitionName()
+{
+	#File name e.g. EVENT_E_SGEH_ERR_RAW_02xyz2014-01-30
+	fileNameAndDate=$1
+	#e.g. EVENT_E_SGEH_ERR_RAW_02
+	filePartitionNameWithPartitionNumber=$( $ECHO ${fileNameAndDate} | $NAWK -F"xyz" '{print $1 }' )
+	#e.g. 2014-01-30
+	fileDate=$( $ECHO ${fileNameAndDate} | $NAWK -F"xyz" '{print $2 }' )
+    #Removes the partition number e.g. EVENT_E_SGEH_ERR_RAW
+	filePartitionNameMinusPartitionNumber=${filePartitionNameWithPartitionNumber%%??}
+	#Set the partition to laod into back to null each time the function is called
+	partitionToLoadDataInto=""
+
+if [[ "${filePartitionNameWithPartitionNumber}" == *_RAW_* ]] 
+then
+	#Want to load all the raw data into the empty partition, so check and see if a partition has already been loaded for the table type by checking the emptyRawPartitionsListFileLocation file.
+	existingPartition=$($CAT $emptyRawPartitionsListFileLocation | $GREP $filePartitionNameMinusPartitionNumber | $TR -d ' ')
+
+	if [ "${existingPartition}" = "" ] 
+	then
+		#Go to the database for the partition
+		$ECHO "SELECT TOP 1 TABLENAME FROM ${filePartitionNameMinusPartitionNumber}TIMERANGE WHERE TABLENAME LIKE '$filePartitionNameMinusPartitionNumber%' AND MAX_DATE = NULL AND MIN_DATE = NULL" > $Tmp_Dir/${fileNameAndDate}.sql 
+		$ECHO "go">>$Tmp_Dir/${fileNameAndDate}.sql 
+		
+		#iqisql -Udc -Pdc -Sdwh_reader_1 -w7000 -i$Tmp_Dir/${fileNameAndDate}.sql -o$Tmp_Dir/${fileNameAndDate}.txt 
+		iqisql -Udc -Pdc -Sdwhdb -w7000 -i$Tmp_Dir/${fileNameAndDate}.sql -o$Tmp_Dir/${fileNameAndDate}.txt 
+		db_con_ec=$?
+
+		if [ $db_con_ec -ne 0 ]
+		then
+			$ECHO Error getting partition for $filePartitionNameWithPartitionNumber. | $TEE -a $logFile
+			$RM -f $sqlFile $Tmp_Dir/${fileNameAndDate}.sql ${Tmp_Dir}/${fileNameAndDate}.txt 
+			exit
+		fi
+		
+		#Wait for a response from the database
+    	while [ ! -f ${Tmp_Dir}/${fileNameAndDate}.txt ]
+		do
+		$ECHO "Waiting for file response '${Tmp_Dir}/${fileNameAndDate}.txt' from the database" | $TEE -a $logFile
+			sleep 10
+		done
+
+		partitionToLoadDataInto_temp=$($CAT $Tmp_Dir/${fileNameAndDate}.txt | $SED '1,2d'|$SED 'N;$!P;$!D;$d'|$SED '/^$/d')
+		partitionToLoadDataInto=$($ECHO $partitionToLoadDataInto_temp | $SED '/^$/d'|$SED -e 's/^[ \t]*//' )
+		#Write the partition to load all file types into this partition into the file
+        $ECHO $partitionToLoadDataInto >> ${emptyRawPartitionsListFileLocation} 
+	else	 
+		#Already loaded data into a partition for this table type so load all other files (tables) into the same partition
+		partitionToLoadDataInto=$existingPartition
+	fi
+#This is a aggregated table
+else
+    $ECHO "SELECT TABLENAME FROM DWHPartition WHERE TABLENAME LIKE '$filePartitionNameMinusPartitionNumber%' AND  '$fileDate 00:00:00' >= STARTTIME AND  '$fileDate 00:00:00' < ENDTIME " > $Tmp_Dir/${fileNameAndDate}.sql
+	$ECHO "go">>$Tmp_Dir/${fileNameAndDate}.sql 
+	
+	iqisql -Udwhrep -Pdwhrep -Srepdb -w7000 -i$Tmp_Dir/${fileNameAndDate}.sql -o$Tmp_Dir/${fileNameAndDate}.txt 
+	db_con_ec=$?
+
+	if [ $db_con_ec -ne 0 ]
+	then
+		$ECHO Error getting partition for $filePartitionNameWithPartitionNumber. | $TEE -a $logFile
+		$RM -f $sqlFile $Tmp_Dir/${fileNameAndDate}.sql $Tmp_Dir/${fileNameAndDate}.txt  }
+		exit
+	fi
+
+		#Wait for a response from the database
+    	while [ ! -f ${Tmp_Dir}/${fileNameAndDate}.txt ]
+		do
+		$ECHO "Waiting for file response '${Tmp_Dir}/${fileNameAndDate}.txt' from the database" | $TEE -a $logFile
+			sleep 10
+		done
+    	partitionToLoadDataInto_temp=$($CAT $Tmp_Dir/${fileNameAndDate}.txt | $SED '1,2d'|$SED 'N;$!P;$!D;$d'|$SED '/^$/d')
+		partitionToLoadDataInto=$($ECHO $partitionToLoadDataInto_temp | $SED '/^$/d'|$SED -e 's/^[ \t]*//' )
+	
+fi 
+$RM -f $sqlFile $Tmp_Dir/${fileNameAndDate}.sql $Tmp_Dir/${fileNameAndDate}.txt
+$ECHO ${partitionToLoadDataInto} 
+}
+
+# ********************************************************************
+#
+# 	Main body of program
+#
+# ********************************************************************
+
+#Ensure that the script is exected in the current directory where it resides. Therefore any relative path will now apply
+Current_Wrk_Dir=`dirname $0`
+cd ${Current_Wrk_Dir}
+
+
+Tmp_Dir=${Current_Wrk_Dir}/tmp/LoadDb
+
+
+#Configure logs
+logFileName="LoadFilesIntoDB"
+clearLogFiles ${logFileName}
+dateNow=$(date +%d-%m-%y_%H:%M:%S)
+logFile=${logFileName}_${dateNow}.log
+$TOUCH $logFile
+
+#File contains a list of partitions that the files are already loaded into. The idea is that we only every want to load Raw into one single partition
+emptyRawPartitionsListFileLocation=raw_partitions.props
+$RM ${emptyRawPartitionsListFileLocation} 2> /dev/null #Only want to create one copy so if the file exist remove it
+$TOUCH ${emptyRawPartitionsListFileLocation}
+
+$RM -rf $Tmp_Dir
+$MKDIR -p $Tmp_Dir
+
+	
+
+Files_To_Be_Loaded_Dir="$1"
+
+while [ -z $Files_To_Be_Loaded_Dir ]
+do
+	$ECHO Enter the address of the folder to be loaded from: | $TEE -a $logFile
+	read Files_To_Be_Loaded_Dir
+done
+
+#Configuration variables
+maxNumberOfFilesToLoadIntoDbAtOnce=7
+maxNumberOfRetriesForAllFiles=12
+maxNumberOfRetriesForASingleFile=3
+waitCountForBacklogToClear=24
+sleepTimeInSeconds=5
+
+#Initialise variables
+# Declare a array variable
+declare -a filesToBeProcessedArray
+dbLoadRetryCount=1
+let waitTimeInMinutesInMinutes=${waitCountForBacklogToClear}*${sleepTimeInSeconds}/60
+
+
+#Initially check the number of files to be loaded
+numberOfFilesToLoad=$( $LS $Files_To_Be_Loaded_Dir | $GREP "xyz" | $WC -l | $TR -d ' ' )
+
+$ECHO  `"$DATE" "+%d-%m-%Y %T"` "There are: "${numberOfFilesToLoad} " files to be loaded from the directory: "${Files_To_Be_Loaded_Dir} | $TEE -a $logFile
+
+while [ "$numberOfFilesToLoad" -ne 0 ]
+do
+
+	$ECHO `"$DATE" "+%d-%m-%Y %T"` " Starting load attempt number ${dbLoadRetryCount}..." | $TEE -a $logFile
+
+ 	if [ "${dbLoadRetryCount}" -gt "${maxNumberOfRetriesForAllFiles}" ]
+ 	then
+			declare -a unprocessedFilesArray
+			unprocessedFiles=$($LS $Files_To_Be_Loaded_Dir | $GREP "xyz")	
+			#Convert the string into an array 
+			unprocessedFilesArray=($unprocessedFiles)
+			$ECHO | $TEE -a $logFile
+     		$ECHO "Exceeded the number of attempts ($dbLoadRetryCount) to reload previous failed files!" | $TEE -a $logFile
+			$ECHO "There are ${numberOfFilesToLoad} files that have NOT been loaded." | $TEE -a $logFile
+			for (( ii=0 ; ii<${#unprocessedFilesArray[@]} ; ii++))
+				do
+					# Below is helpful for debugging
+					let unprocessedFileCount=$ii+1
+					$ECHO "$unprocessedFileCount.) ${unprocessedFilesArray[$ii]}" | $TEE -a $logFile
+			done
+			$ECHO "Please check the ${Files_To_Be_Loaded_Dir} directory!" | $TEE -a $logFile
+     		exit 1
+ 	fi
+
+	
+    #Get a list of distinct date that are to be loaded into the database
+	$LS $Files_To_Be_Loaded_Dir | $GREP "xyz" | $NAWK -F"xyz" '{print $2 }' | $SORT -u > /tmp/distinct_date.txt
+
+    #Start at the first date and load only those dates into the database
+	for distinctDate in `</tmp/distinct_date.txt`
+	do
+		#list only the files (tables) of one particular date to load
+		$LS $Files_To_Be_Loaded_Dir | $GREP "xyz$distinctDate" >/tmp/temp_table_${distinctDate}_list.txt
+	
+	
+
+
+	# Load file into array.
+	let z=0
+	#Clear the array
+	unset filesToBeProcessedArray
+	while IFS=$'\n' read -r line_data; do
+		filesToBeProcessedArray[z]="${line_data}"
+		((++z))
+	done < /tmp/temp_table_${distinctDate}_list.txt
+	
+	#Keep a count of the processed files for a particular date
+	fileProcessedCount=0
+	maxNumberOfRetriesForASingleFileCount=0
+		    #Go through all the files and load them one by one by date
+			while (( fileProcessedCount < ${#filesToBeProcessedArray[@]} ));
+    		do
+				
+						#Check and see how many file for a given date need to be loaded
+            			filesYetToBeLoaded=$($LS $Tmp_Dir | $GREP ExtTabSql | $WC -l | $TR -d ' ')						
+
+						if [ "$filesYetToBeLoaded" -lt "$maxNumberOfFilesToLoadIntoDbAtOnce" ] 
+							then
+							#The "&" is to put the process in the background but then it is not possible to get a handle on the file with existing partitions
+							#loadTable $fl &
+							PartitionName=$(getPartitionName ${filesToBeProcessedArray[$fileProcessedCount]})
+							loadTable ${filesToBeProcessedArray[$fileProcessedCount]} ${PartitionName} &
+							let fileProcessedCount=$fileProcessedCount+1
+							maxNumberOfRetriesForASingleFileCount=0
+						else
+							let count=$count+1
+							let currentWaitTimeInSeconds=${waitCountForBacklogToClear}*${sleepTimeInSeconds}-${count}*${sleepTimeInSeconds}
+									if [[ "${maxNumberOfRetriesForASingleFile}" -eq "${maxNumberOfRetriesForASingleFileCount}" ]]
+									then
+									    let maxNumberOfRetriesForASingleFileInMinutes=${maxNumberOfRetriesForASingleFileCount}*${waitTimeInMinutesInMinutes}
+										$ECHO "Giving up on trying to load  file: ${filesToBeProcessedArray[$fileProcessedCount]}, waited a total of ${maxNumberOfRetriesForASingleFileInMinutes} minutes for the backlog of ${filesYetToBeLoaded} 'ExtTabSql*' files to clear from in the ${Tmp_Dir} directory" | $TEE -a $logFile
+										break 
+									elif [[ "$count" -ge "$waitCountForBacklogToClear" ]]
+									then
+										$CLEAR; $ECHO "Still processing loads... waiting for ${waitTimeInMinutes} minutes for the backlog to clear as ${filesYetToBeLoaded} files have yet to be loaded into the database..." | $TEE -a $logFile
+										$ECHO "Try manually deleting the files 'ExtTabSql*' in the ${Tmp_Dir} directory." | $TEE -a $logFile
+										count=0
+										let maxNumberOfRetriesForASingleFileCount=$maxNumberOfRetriesForASingleFileCount+1
+									else
+										$ECHO "Waiting a further ${sleepTimeInSeconds} seconds between retries to process the next load file: ${filesToBeProcessedArray[$fileProcessedCount]}" | $TEE -a $logFile
+									fi
+            			fi
+						sleep ${sleepTimeInSeconds}
+
+    		done
+
+ 	done
+
+    #Check each time are there any files to be processed
+	numberOfFilesToLoad=$( $LS $Files_To_Be_Loaded_Dir | $GREP "xyz" | $WC -l | $TR -d ' ' )
+	if [[ "${numberOfFilesToLoad}" -le 2 ]]
+	then
+		sleep 40
+	fi
+	let dbLoadRetryCount=$dbLoadRetryCount+1
+done
+ 
+$RM /tmp/temp_table_*_list.txt
+ 
+ 
